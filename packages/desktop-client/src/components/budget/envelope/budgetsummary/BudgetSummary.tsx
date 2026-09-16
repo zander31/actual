@@ -70,8 +70,9 @@ export const BudgetSummary = memo(({ month }: BudgetSummaryProps) => {
           month === currentMonth
             ? theme.budgetCurrentMonth
             : theme.budgetOtherMonth,
-        boxShadow: styles.cardShadow,
-        borderRadius: 6,
+        // one edge signal: a hairline, not a cast shadow on a resting surface
+        boxShadow: `inset 0 0 0 1px ${theme.tableBorder}`,
+        borderRadius: 16,
         marginLeft: 0,
         marginRight: 0,
         marginTop: 5,
@@ -91,8 +92,8 @@ export const BudgetSummary = memo(({ month }: BudgetSummaryProps) => {
       <SheetNameProvider name={monthUtils.sheetForMonth(month)}>
         <View
           style={{
-            padding: '0 13px',
-            ...(collapsed ? { margin: '10px 0' } : { marginTop: 16 }),
+            padding: '0 20px',
+            ...(collapsed ? { margin: '10px 0' } : { marginTop: 18 }),
           }}
         >
           <View
@@ -124,13 +125,14 @@ export const BudgetSummary = memo(({ month }: BudgetSummaryProps) => {
           <div
             className={css([
               {
-                textAlign: 'center',
-                marginTop: 3,
-                fontSize: 18,
-                fontWeight: 500,
+                textAlign: 'left',
+                marginTop: 2,
+                ...styles.displayText,
+                fontSize: 21,
+                fontWeight: 600,
                 textDecorationSkip: 'ink',
               },
-              currentMonth === month && { fontWeight: 'bold' },
+              currentMonth === month && { color: theme.pageText },
             ])}
           >
             {monthUtils.format(month, 'MMMM', locale)}
@@ -269,16 +271,9 @@ export const BudgetSummary = memo(({ month }: BudgetSummaryProps) => {
           <>
             <TotalsList
               prevMonthName={prevMonthName}
-              style={{
-                padding: '5px 0',
-                marginTop: 17,
-                backgroundColor: theme.budgetHeaderCurrentMonth,
-                borderTopWidth: 1,
-                borderBottomWidth: 1,
-                borderColor: theme.tableBorder,
-              }}
+              style={{ padding: '0 20px', marginTop: 18 }}
             />
-            <View style={{ margin: '23px 0' }}>
+            <View style={{ margin: '22px 0 24px', padding: '0 20px' }}>
               <ToBudget
                 prevMonthName={prevMonthName}
                 month={month}

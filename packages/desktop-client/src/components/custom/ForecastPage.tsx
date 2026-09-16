@@ -1,10 +1,16 @@
 // Fork addition: 90-day cash curve = upstream schedules forecast, overlaid with rolling
 // 3-month variable-spend rates (non-scheduled outflows) as best / expected / worst bands,
 // plus projected month-end balances for the next 3 months.
+//
+// The page has one job: say whether the money runs out and when. The figure
+// leads, the curve changes colour at zero, the crossing is marked, and
+// everything else recedes to hairlines.
 import { useEffect, useMemo, useState } from 'react';
-import { useTranslation } from 'react-i18next';
+import { Trans, useTranslation } from 'react-i18next';
 
+import { useResponsive } from '@actual-app/components/hooks/useResponsive';
 import { Select } from '@actual-app/components/select';
+import { styles } from '@actual-app/components/styles';
 import { Text } from '@actual-app/components/text';
 import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
@@ -14,8 +20,10 @@ import { q } from '@actual-app/core/shared/query';
 import type { ForecastDataPoint } from '@actual-app/core/types/models/forecast';
 import {
   Area,
+  CartesianGrid,
   ComposedChart,
   Line,
+  ReferenceDot,
   ReferenceLine,
   ResponsiveContainer,
   Tooltip,
@@ -33,15 +41,29 @@ import {
   monthEnds,
   monthlyTotals,
   projectBands,
+  RED_BELOW,
   variableSpendRates,
 } from './forecastMath';
 import type { SpendRates } from './forecastMath';
+import {
+  chip,
+  columnLabel,
+  DashSwatch,
+  Delta,
+  HeroNumber,
+  LegendRow,
+  Rule,
+  sectionLabel,
+  Swatch,
+  wash,
+} from './primitives';
 
 const DAYS = 90;
 const HISTORY_MONTHS = 3;
 
 export function ForecastPage() {
   const { t } = useTranslation();
+  const { isNarrowWidth } = useResponsive();
   const format = useFormat();
   const { data: accounts = [] } = useAccounts();
   const onBudget = useMemo(
@@ -115,20 +137,36 @@ export function ForecastPage() {
     ...b,
     band: [b.worst, b.best] as [number, number],
   }));
+
+  // the answer the page exists to give
+  const crossing = bands.find(b => b.expected < 0) ?? null;
   const lowest = bands.reduce<(typeof bands)[number] | null>(
     (m, b) => (!m || b.expected < m.expected ? b : m),
     null,
   );
+  // where zero sits in the plotted range, so the curve can change colour there
+  // instead of the chart shading a whole region red
+  const yMax = Math.max(0, ...bands.map(b => b.best));
+  const yMin = Math.min(0, ...bands.map(b => b.worst));
+  const zeroOffset = yMax === yMin ? 1 : yMax / (yMax - yMin);
+  // widened so recharts infers a numeric Y domain rather than the literal 0
+  const zeroLine: number = 0;
+  const last = bands.length ? bands[bands.length - 1] : null;
+  const lastDate = last?.date ?? null;
+  const endColor =
+    last && last.expected < 0 ? theme.errorBorder : theme.reportsChartFill;
+  const longDate = (d: string) => monthUtils.format(d, 'EEEE, d MMMM');
 
   return (
-    <Page header={t('Forecast')}>
+    <Page header={isNarrowWidth ? t('Forecast') : null}>
       <View
         style={{
           flexDirection: 'row',
           gap: 12,
           alignItems: 'center',
           flexWrap: 'wrap',
-          marginBottom: 10,
+          marginBottom: 22,
+          flexShrink: 0,
         }}
       >
         <Select
@@ -139,60 +177,137 @@ export function ForecastPage() {
             ...onBudget.map(a => [a.id, a.name] as [string, string]),
           ]}
         />
-        <Text style={{ color: theme.pageTextLight }}>
-          {t(
-            'Variable spend (non-scheduled, last {{n}} months): best {{best}}/day · expected {{expected}}/day · worst {{worst}}/day',
-            {
-              n: history.length,
-              best: format(Math.round(rates.best), 'financial-no-decimals'),
-              expected: format(
-                Math.round(rates.expected),
-                'financial-no-decimals',
-              ),
-              worst: format(Math.round(rates.worst), 'financial-no-decimals'),
-            },
-          )}
-        </Text>
-        {lowest && (
-          <Text
+      </View>
+
+      {lowest && (
+        <View style={{ marginBottom: 30, gap: 8, flexShrink: 0 }}>
+          <HeroNumber
+            color={lowest.expected < 0 ? theme.errorText : theme.pageText}
+          >
+            {format(lowest.expected, 'financial')}
+          </HeroNumber>
+          <View
             style={{
-              color:
-                lowest.expected < 0 ? theme.errorText : theme.pageTextLight,
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 12,
+              flexWrap: 'wrap',
             }}
           >
-            {t('Expected low: {{amount}} on {{date}}', {
-              amount: format(lowest.expected, 'financial'),
-              date: lowest.date,
+            <Delta
+              up={lowest.expected >= 0}
+              amount={
+                crossing ? t('Projected low') : t('Thinnest day in 90 days')
+              }
+              period={longDate(lowest.date)}
+            />
+            {crossing && (
+              <Text
+                style={{
+                  ...chip,
+                  backgroundColor: wash(
+                    theme.errorText,
+                    12,
+                    theme.pageBackground,
+                  ),
+                  color: theme.errorText,
+                }}
+              >
+                <Trans>
+                  Runs out {{ when: monthUtils.format(crossing.date, 'd MMM') }}
+                </Trans>
+              </Text>
+            )}
+          </View>
+        </View>
+      )}
+
+      {last && (
+        <View style={{ gap: 7, marginBottom: 14, flexShrink: 0 }}>
+          <LegendRow
+            swatch={<Swatch color={theme.reportsChartFill} />}
+            value={t('{{worst}} to {{best}}', {
+              worst: format(last.worst, 'financial-no-decimals'),
+              best: format(last.best, 'financial-no-decimals'),
             })}
-          </Text>
-        )}
-      </View>
+            label={t('Range in 90 days')}
+          />
+          <LegendRow
+            swatch={<DashSwatch color={theme.pageTextSubdued} />}
+            value={format(last.schedules, 'financial-no-decimals')}
+            label={t('Schedules alone')}
+          />
+        </View>
+      )}
+
+      <svg
+        width="0"
+        height="0"
+        aria-hidden="true"
+        style={{ position: 'absolute' }}
+      >
+        <defs>
+          {/* one hard stop exactly at zero: above it the curve is a gain,
+              below it it is money you do not have */}
+          <linearGradient id="fc-curve" x1="0" y1="0" x2="0" y2="1">
+            <stop offset={zeroOffset} stopColor={theme.reportsChartFill} />
+            <stop offset={zeroOffset} stopColor={theme.errorBorder} />
+          </linearGradient>
+          <linearGradient id="fc-band" x1="0" y1="0" x2="0" y2="1">
+            <stop
+              offset={zeroOffset}
+              stopColor={theme.reportsChartFill}
+              stopOpacity={0.16}
+            />
+            <stop
+              offset={zeroOffset}
+              stopColor={theme.errorBorder}
+              stopOpacity={0.12}
+            />
+          </linearGradient>
+        </defs>
+      </svg>
 
       <View
         style={{
-          height: 320,
-          backgroundColor: theme.tableBackground,
-          borderRadius: 6,
-          padding: 8,
+          height: 300,
+          // a flex column will happily shrink this below the SVG it contains,
+          // which spills the axes onto whatever follows
+          flexShrink: 0,
+          backgroundColor: theme.surfaceSunken,
+          borderRadius: 16,
+          padding: '10px 8px 0 0',
         }}
       >
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart
             data={chartData}
-            margin={{ top: 10, right: 20, bottom: 0, left: 10 }}
+            margin={{ top: 6, right: 16, bottom: 0, left: 4 }}
           >
+            <CartesianGrid
+              vertical={false}
+              stroke={theme.pageTextSubdued}
+              strokeOpacity={0.35}
+              strokeDasharray="1 5"
+            />
             <XAxis
               dataKey="date"
-              tick={{ fill: theme.pageText, fontSize: 11 }}
-              tickFormatter={d => d.slice(5)}
-              minTickGap={30}
+              tick={{ fill: theme.pageTextSubdued, fontSize: 11 }}
+              tickFormatter={d => monthUtils.format(d, 'd MMM')}
+              tickLine={false}
+              axisLine={{ stroke: theme.tableBorder }}
+              minTickGap={34}
             />
             <YAxis
-              tick={{ fill: theme.pageText, fontSize: 11 }}
+              tick={{ fill: theme.pageTextSubdued, fontSize: 11 }}
               tickFormatter={v => format(v, 'financial-no-decimals')}
-              width={80}
+              tickLine={false}
+              axisLine={false}
+              width={74}
             />
             <Tooltip
+              cursor={{ stroke: theme.pageTextSubdued, strokeWidth: 1 }}
+              labelFormatter={d => longDate(String(d))}
               formatter={(value, name) =>
                 Array.isArray(value)
                   ? [
@@ -202,90 +317,216 @@ export function ForecastPage() {
                   : [format(Number(value), 'financial'), String(name)]
               }
               contentStyle={{
-                backgroundColor: theme.menuBackground,
-                color: theme.menuItemText,
-                border: 'none',
+                backgroundColor: theme.tooltipBackground,
+                color: theme.tooltipText,
+                border: `1px solid ${theme.tooltipBorder}`,
+                borderRadius: 6,
+                boxShadow: '0 6px 16px rgba(0,0,0,0.14)',
+                ...styles.tnum,
               }}
             />
-            <ReferenceLine y={0} stroke={theme.pageTextSubdued} />
             <ReferenceLine
-              y={50_000}
+              y={0}
+              stroke={theme.pageText}
+              strokeWidth={1}
+              ifOverflow="extendDomain"
+            />
+            <ReferenceLine
+              y={RED_BELOW}
               stroke={theme.errorText}
-              strokeDasharray="4 4"
+              strokeDasharray="3 4"
+              strokeOpacity={0.5}
+              label={{
+                value: t('$500'),
+                position: 'insideTopRight',
+                fill: theme.errorText,
+                fontSize: 10,
+              }}
             />
             <Area
               type="monotone"
               dataKey="band"
               stroke="none"
-              fill={theme.reportsBlue}
-              fillOpacity={0.15}
+              fill="url(#fc-band)"
+              fillOpacity={1}
               name={t('band')}
+              animationDuration={700}
+              animationEasing="ease-out"
             />
             <Line
               type="monotone"
               dataKey="schedules"
-              stroke={theme.pageTextSubdued}
+              stroke={theme.pageTextLight}
               dot={false}
-              strokeDasharray="3 3"
+              strokeDasharray="1 5"
+              strokeLinecap="round"
+              strokeWidth={2}
               name={t('schedules only')}
+              animationDuration={700}
+              animationEasing="ease-out"
             />
             <Line
               type="monotone"
               dataKey="expected"
-              stroke={theme.reportsBlue}
+              stroke="url(#fc-curve)"
               dot={false}
-              strokeWidth={2}
+              strokeWidth={2.5}
+              strokeLinecap="round"
               name={t('expected')}
+              animationDuration={900}
+              animationEasing="ease-out"
             />
+            {crossing && (
+              <ReferenceDot
+                x={crossing.date}
+                y={zeroLine}
+                r={12}
+                fill={theme.errorBorder}
+                fillOpacity={0.18}
+                stroke="none"
+              />
+            )}
+            {crossing && (
+              <ReferenceDot
+                x={crossing.date}
+                y={zeroLine}
+                r={5}
+                fill={theme.errorBorder}
+                stroke={theme.surfaceSunken}
+                strokeWidth={2}
+              />
+            )}
+            {last && (
+              <ReferenceDot
+                x={last.date}
+                y={last.expected}
+                r={12}
+                fill={endColor}
+                fillOpacity={0.18}
+                stroke="none"
+              />
+            )}
+            {last && (
+              <ReferenceDot
+                x={last.date}
+                y={last.expected}
+                r={5}
+                fill={endColor}
+                stroke={theme.surfaceSunken}
+                strokeWidth={2}
+              />
+            )}
           </ComposedChart>
         </ResponsiveContainer>
       </View>
 
-      <View style={{ marginTop: 16, maxWidth: 520 }}>
-        <Text style={{ fontWeight: 600, marginBottom: 6 }}>
-          {t('Projected month-end balance')}
+      <View style={{ marginTop: 34, maxWidth: 580, flexShrink: 0 }}>
+        <Text style={{ ...styles.displayText, marginBottom: 14 }}>
+          <Trans>Where each month lands</Trans>
         </Text>
         <View
           style={{
             display: 'grid',
-            gridTemplateColumns: '1fr 1fr 1fr 1fr',
-            gap: 6,
+            gridTemplateColumns: '1.3fr 1fr 1fr 1fr',
+            rowGap: 0,
+            columnGap: 16,
+            flexShrink: 0,
           }}
         >
-          {[t('Month'), t('Worst'), t('Expected'), t('Best')].map(h => (
-            <Text key={h} style={{ color: theme.pageTextLight, fontSize: 12 }}>
+          {[t('Month'), t('Worst'), t('Expected'), t('Best')].map((h, i) => (
+            <Text
+              key={h}
+              style={{
+                ...columnLabel,
+                textAlign: i === 0 ? 'left' : 'right',
+                paddingBottom: 7,
+              }}
+            >
               {h}
             </Text>
           ))}
-          {ends.map(e => (
-            <View key={e.date} style={{ display: 'contents' }}>
-              <Text>{monthUtils.format(e.date.slice(0, 7), 'MMM yyyy')}</Text>
-              <Text
-                style={{
-                  color: e.worst < 0 ? theme.errorText : theme.pageText,
-                }}
-              >
-                {format(e.worst, 'financial-no-decimals')}
-              </Text>
-              <Text
-                style={{
-                  fontWeight: 600,
-                  color: e.expected < 0 ? theme.errorText : theme.pageText,
-                }}
-              >
-                {format(e.expected, 'financial-no-decimals')}
-              </Text>
-              <Text>{format(e.best, 'financial-no-decimals')}</Text>
-            </View>
-          ))}
+          <Rule style={{ gridColumn: '1 / -1' }} />
+          {ends.map(e => {
+            const cell = {
+              ...styles.tnum,
+              textAlign: 'right' as const,
+              padding: '9px 0',
+            };
+            return (
+              <View key={e.date} style={{ display: 'contents' }}>
+                <Text style={{ padding: '9px 0', color: theme.pageText }}>
+                  {monthUtils.format(e.date.slice(0, 7), 'MMMM yyyy')}
+                </Text>
+                <Text
+                  style={{
+                    ...cell,
+                    color:
+                      e.worst < 0 ? theme.errorText : theme.pageTextSubdued,
+                  }}
+                >
+                  {format(e.worst, 'financial-no-decimals')}
+                </Text>
+                <Text
+                  style={{
+                    ...cell,
+                    fontWeight: 600,
+                    color: e.expected < 0 ? theme.errorText : theme.pageText,
+                  }}
+                >
+                  {format(e.expected, 'financial-no-decimals')}
+                </Text>
+                <Text style={{ ...cell, color: theme.pageTextSubdued }}>
+                  {format(e.best, 'financial-no-decimals')}
+                </Text>
+                <Rule style={{ gridColumn: '1 / -1' }} />
+              </View>
+            );
+          })}
         </View>
-        <Text
-          style={{ color: theme.pageTextLight, fontSize: 12, marginTop: 8 }}
+
+        <View
+          style={{
+            marginTop: 20,
+            padding: '14px 16px',
+            borderRadius: 14,
+            backgroundColor: theme.surfaceSunken,
+            gap: 5,
+          }}
         >
-          {t(
-            'Schedules drive the dashed line (same engine as the Balance Forecast report). Bands subtract your best/average/worst month of non-scheduled spending, spread per day.',
+          <Text style={{ ...sectionLabel }}>
+            <Trans>How this is worked out</Trans>
+          </Text>
+          <Text style={{ color: theme.pageTextLight, lineHeight: 1.55 }}>
+            <Trans>
+              The dashed line is your schedules alone, from the same engine as
+              the Balance Forecast report. The band subtracts your best, average
+              and worst month of non-scheduled spending over the last{' '}
+              {{ n: history.length }} months, spread evenly per day — currently{' '}
+              {{
+                best: format(Math.round(rates.best), 'financial-no-decimals'),
+              }}
+              ,{' '}
+              {{
+                expected: format(
+                  Math.round(rates.expected),
+                  'financial-no-decimals',
+                ),
+              }}{' '}
+              and{' '}
+              {{
+                worst: format(Math.round(rates.worst), 'financial-no-decimals'),
+              }}{' '}
+              a day.
+            </Trans>
+          </Text>
+          {lastDate && (
+            <Text style={{ color: theme.pageTextSubdued, fontSize: 12 }}>
+              <Trans>
+                Projected through {{ through: longDate(lastDate) }}.
+              </Trans>
+            </Text>
           )}
-        </Text>
+        </View>
       </View>
     </Page>
   );

@@ -8,7 +8,6 @@ import {
   SvgCheveronRight,
 } from '@actual-app/components/icons/v1';
 import { SvgCalendar } from '@actual-app/components/icons/v2';
-import { styles } from '@actual-app/components/styles';
 import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
 import * as monthUtils from '@actual-app/core/shared/months';
@@ -95,8 +94,14 @@ export const MonthPicker = ({
           buttonVariant="bare"
           onPress={() => onSelect(currentMonth)}
           style={{
-            padding: '3px 3px',
-            marginRight: '12px',
+            padding: 0,
+            width: 30,
+            height: 30,
+            borderRadius: 999,
+            marginRight: 10,
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: theme.surfaceSunken,
           }}
         >
           <View title={t('Today')}>
@@ -113,8 +118,14 @@ export const MonthPicker = ({
           buttonVariant="bare"
           onPress={() => onSelect(monthUtils.prevMonth(startMonth))}
           style={{
-            padding: '3px 3px',
-            marginRight: '12px',
+            padding: 0,
+            width: 30,
+            height: 30,
+            borderRadius: 999,
+            marginRight: 10,
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: theme.surfaceSunken,
           }}
         >
           <View title={t('Previous month')}>
@@ -155,21 +166,31 @@ export const MonthPicker = ({
               data-month={selected ? month : undefined}
               style={{
                 alignItems: 'center',
-                padding: '3px 3px',
-                width: size === 'big' ? '35px' : '20px',
+                justifyContent: 'center',
+                padding: '0 4px',
+                height: 30,
+                width: size === 'big' ? '44px' : '30px',
                 textAlign: 'center',
                 userSelect: 'none',
                 cursor: 'default',
-                borderRadius: 2,
+                borderRadius: 0,
                 border: 'none',
+                fontSize: 14,
+                fontWeight: 500,
+                letterSpacing: '-0.012em',
+                color: theme.pageTextLight,
+                transition: 'background-color .14s ease, color .14s ease',
+                '@media (prefers-reduced-motion: reduce)': {
+                  transition: 'none',
+                },
                 ...(!isMonthBudgeted && {
                   textDecoration: 'line-through',
                   color: theme.pageTextSubdued,
                 }),
-                ...styles.smallText,
                 ...(selected && {
                   backgroundColor: theme.buttonPrimaryBackground,
                   color: theme.buttonPrimaryText,
+                  fontWeight: 600,
                 }),
                 ...((hovered || selected) && {
                   borderRadius: 0,
@@ -201,15 +222,15 @@ export const MonthPicker = ({
                   }),
                 ...((idx === firstSelectedIndex ||
                   (idx === hoverId && !selected)) && {
-                  borderTopLeftRadius: 2,
-                  borderBottomLeftRadius: 2,
+                  borderTopLeftRadius: 999,
+                  borderBottomLeftRadius: 999,
                 }),
                 ...((idx === lastSelectedIndex ||
                   (idx === lastHoverId && !selected)) && {
-                  borderTopRightRadius: 2,
-                  borderBottomRightRadius: 2,
+                  borderTopRightRadius: 999,
+                  borderBottomRightRadius: 999,
                 }),
-                ...(current && { fontWeight: 'bold' }),
+                ...(current && !selected && { color: theme.pageText }),
               }}
               onClick={() => onSelect(month)}
               onMouseEnter={() => setHoverId(idx)}
@@ -242,8 +263,14 @@ export const MonthPicker = ({
           buttonVariant="bare"
           onPress={() => onSelect(monthUtils.nextMonth(startMonth))}
           style={{
-            padding: '3px 3px',
-            marginLeft: '12px',
+            padding: 0,
+            width: 30,
+            height: 30,
+            borderRadius: 999,
+            marginLeft: 10,
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: theme.surfaceSunken,
           }}
         >
           <View title={t('Next month')}>
@@ -256,12 +283,7 @@ export const MonthPicker = ({
           </View>
         </Link>
         {/*Keep range centered*/}
-        <span
-          style={{
-            width: '22px',
-            marginLeft: '12px',
-          }}
-        />
+        <span style={{ width: 40, marginLeft: 10 }} />
       </View>
     </View>
   );
