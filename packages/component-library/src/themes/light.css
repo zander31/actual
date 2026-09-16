@@ -236,7 +236,7 @@
 
   --color-tooltipText: var(--palette-navy900);
   --color-tooltipBackground: var(--palette-white);
-  --color-tooltipBorder: var(--palette-navy150);
+  --color-tooltipBorder: #e3e7ec;
 
   --color-calendarCellBackground: var(--palette-navy100);
 
@@ -251,4 +251,110 @@
   --color-chartQual7: var(--palette-chartQual7);
   --color-chartQual8: var(--palette-chartQual8);
   --color-chartQual9: var(--palette-chartQual9);
+}
+
+/* ── Robinhood light ─────────────────────────────────────────────────────────
+ * Structure comes from hairlines on white, not from tinted panels. Grey is a
+ * secondary surface, never the canvas. Appended so the upstream block above
+ * stays byte-identical and rebases cleanly.
+ */
+:root {
+  /* canvas: a cool hint of grey so white surfaces read against it without a
+     border, and a sunken step for chart tiles and promos */
+  --color-pageBackground: #f7f9fb;
+  --color-surfaceSunken: #f1f4f8;
+  --color-pageBackgroundModalActive: var(--palette-navy100);
+  --color-pageBackgroundTopLeft: var(--palette-white);
+  --color-pageBackgroundBottomRight: #f6f6f7;
+  --color-pageBackgroundLineTop: var(--palette-purple500);
+  --color-pageBackgroundLineMid: var(--palette-navy150);
+  --color-pageBackgroundLineBottom: var(--palette-navy100);
+  --color-pageText: #1c1e21;
+  --color-pageTextLight: #585e66; /* 6.8:1 */
+  --color-pageTextSubdued: #697079; /* 5.1:1 — upstream's navy300 was 2.2:1 */
+  --color-pageTextPositive: var(--palette-purple600);
+  --color-pageTextLink: var(--palette-purple600);
+  --color-pageTextLinkLight: var(--palette-purple500);
+
+  /* the sidebar is part of the canvas, divided from it by one hairline */
+  --color-sidebarBackground: var(--palette-white);
+  --color-sidebarItemText: #585e66;
+  --color-sidebarItemTextSelected: var(--palette-purple600);
+  --color-sidebarItemAccentSelected: var(--palette-purple500);
+  --color-sidebarItemBackgroundHover: var(--palette-navy50);
+  --color-sidebarBudgetName: #1c1e21;
+  --color-sidebarItemBackgroundPositive: var(--palette-purple500);
+  --color-sidebarItemBackgroundPending: var(--palette-orange400);
+  --color-sidebarItemBackgroundFailed: var(--palette-red500);
+
+  /* tables: white, ruled, no banding — the eye tracks on the hairline */
+  --color-tableBackground: var(--palette-white);
+  --color-tableRowBackgroundAlternate: var(--color-tableBackground);
+  --color-tableRowBackgroundHover: var(--palette-navy50);
+  --color-tableHeaderBackground: var(--palette-white);
+  --color-tableHeaderText: #697079;
+  --color-tableBorder: #e3e7ec;
+  --color-tableBorderSeparator: var(--palette-navy200);
+  --color-tableTextLight: #697079;
+  --color-tableBorderSelected: var(--palette-purple500);
+  --color-tableBorderHover: var(--palette-purple400);
+
+  /* money: deep steps only — the brand green and red are fills, never figures */
+  --color-numberPositive: var(--palette-green700);
+  --color-numberNegative: var(--palette-red700);
+  --color-noticeText: var(--palette-green700);
+  --color-errorText: var(--palette-red700);
+  --color-warningText: var(--palette-orange800);
+
+  /* one elevation signal */
+  --color-cardBackground: var(--palette-white);
+  --color-cardBorder: #e3e7ec;
+  --color-cardShadow: rgba(0, 0, 0, 0.08);
+  --color-modalBackground: var(--palette-white);
+  --color-modalBorder: #e3e7ec;
+  --color-menuBackground: var(--palette-white);
+  --color-menuItemBackground: var(--palette-white);
+  --color-menuItemBackgroundHover: var(--palette-navy50);
+  --color-menuItemText: #1c1e21;
+  --color-menuItemTextSelected: var(--palette-purple600);
+  --color-menuItemTextHeader: #697079;
+  --color-menuBorder: #e3e7ec;
+  --color-menuKeybindingText: #697079;
+
+  /* controls — the primary action is high-contrast neutral, not the accent.
+     Green stays reserved for gains; spending it on every button flattens it. */
+  --color-buttonPrimaryBackground: var(--palette-ink);
+  --color-buttonPrimaryBackgroundHover: var(--palette-ink700);
+  --color-buttonPrimaryText: var(--palette-white);
+  --color-buttonPrimaryDisabledBackground: var(--palette-navy200);
+  --color-buttonPrimaryDisabledText: var(--palette-white);
+  --color-buttonNormalBackground: var(--palette-white);
+  --color-buttonNormalBackgroundHover: var(--palette-navy50);
+  --color-buttonNormalBorder: var(--palette-navy200);
+  --color-buttonNormalText: #1c1e21;
+  --color-formInputBackground: var(--palette-white);
+  --color-formInputBorder: var(--palette-navy200);
+  --color-formInputBorderSelected: var(--palette-purple500);
+  --color-formInputTextPlaceholder: #697079;
+  --color-formInputShadowSelected: var(--palette-purple150);
+
+  /* mobile */
+  --color-mobileHeaderBackground: var(--palette-white);
+  --color-mobileHeaderText: #1c1e21;
+  --color-mobileHeaderTextSubdued: #697079;
+  --color-mobilePageBackground: #f7f9fb;
+  --color-mobileNavBackground: var(--palette-white);
+  --color-mobileNavItem: #697079;
+  --color-mobileNavItemSelected: var(--palette-purple600);
+  --color-mobileViewTheme: var(--palette-white);
+  --color-floatingActionBarBackground: var(--palette-purple500);
+  --color-floatingActionBarText: var(--palette-white);
+
+  --color-pillBackground: var(--palette-navy100);
+  --color-pillBorder: var(--palette-navy100);
+  --color-pillText: #1c1e21;
+  --color-tooltipBackground: var(--palette-white);
+  --color-tooltipBorder: #e3e7ec;
+  --color-tooltipText: #1c1e21;
+  --color-reportsChartFill: var(--palette-purple500);
 }

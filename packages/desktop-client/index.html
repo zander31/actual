@@ -33,7 +33,7 @@
       input {
         font-family: var(
           --font-family,
-          'Inter Variable',
+          'Instrument Sans Variable',
           -apple-system,
           BlinkMacSystemFont,
           'Segoe UI',
@@ -62,8 +62,14 @@
       }
 
       *:focus {
-        /* colors.b5 */
-        outline-color: #2b8fed;
+        outline-color: var(--color-pageTextLink, #00810a);
+      }
+
+      /* a keyboard ring that sits off the element instead of on it */
+      *:focus-visible {
+        outline: 2px solid var(--color-pageTextLink, #00810a);
+        outline-offset: 2px;
+        border-radius: 4px;
       }
 
       /* recharts makes chart surfaces and layers focusable for keyboard
@@ -80,7 +86,7 @@
         font-size: 1em;
         font-family: var(
           --font-family,
-          'Inter Variable',
+          'Instrument Sans Variable',
           -apple-system,
           BlinkMacSystemFont,
           'Segoe UI',
@@ -116,6 +122,60 @@
 
       .cm-theme-light {
         height: 100%;
+      }
+
+      /* ── The surfaces the component tree never draws ──────────────────── */
+
+      body {
+        font-variant-numeric: tabular-nums;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
+
+      h1,
+      h2,
+      h3,
+      .display {
+        font-weight: 600;
+        letter-spacing: -0.025em;
+      }
+
+      ::selection {
+        background: var(--palette-purple150, #bdf4c3);
+        color: var(--color-pageText, #1c1e21);
+      }
+
+      :root {
+        caret-color: var(--color-pageTextPositive, #00810a);
+        scrollbar-color: var(--color-tableBorderSeparator, #cbc9ca) transparent;
+        scrollbar-width: thin;
+      }
+
+      ::-webkit-scrollbar {
+        width: 11px;
+        height: 11px;
+      }
+
+      ::-webkit-scrollbar-track {
+        background: transparent;
+      }
+
+      ::-webkit-scrollbar-thumb {
+        background: var(--color-tableBorderSeparator, #cbc9ca);
+        border: 3px solid transparent;
+        border-radius: 999px;
+        background-clip: content-box;
+      }
+
+      ::-webkit-scrollbar-thumb:hover {
+        background: var(--color-pageTextSubdued, #6b6d72);
+        border: 3px solid transparent;
+        background-clip: content-box;
+      }
+
+      a {
+        text-underline-offset: 0.18em;
+        text-decoration-thickness: from-font;
       }
     </style>
   </head>

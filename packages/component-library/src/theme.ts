@@ -19,6 +19,7 @@ export const theme = {
   cardBackground: 'var(--color-cardBackground)',
   cardBorder: 'var(--color-cardBorder)',
   cardShadow: 'var(--color-cardShadow)',
+  surfaceSunken: 'var(--color-surfaceSunken)',
   tableBackground: 'var(--color-tableBackground)',
   tableRowBackgroundHover: 'var(--color-tableRowBackgroundHover)',
   tableText: 'var(--color-tableText)',

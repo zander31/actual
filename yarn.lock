@@ -243,7 +243,9 @@ __metadata:
     "@codemirror/state": "npm:^6.7.1"
     "@codemirror/view": "npm:^6.43.6"
     "@emotion/css": "npm:^11.13.5"
+    "@fontsource-variable/instrument-sans": "npm:^5.3.0"
     "@fontsource-variable/inter": "npm:^5.2.8"
+    "@fontsource-variable/petrona": "npm:^5.3.0"
     "@fontsource/redacted-script": "npm:^5.2.8"
     "@internationalized/date": "npm:^3.12.2"
     "@lezer/highlight": "npm:^1.2.3"
@@ -4485,10 +4487,24 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@fontsource-variable/instrument-sans@npm:^5.3.0":
+  version: 5.3.0
+  resolution: "@fontsource-variable/instrument-sans@npm:5.3.0"
+  checksum: 10/a767675ffaa3f9d82e16b6a4b30ecf799795293fc4fddac50a213e03cd6c475167968636780c43701bf18e4e0a09321ebdbcebdf73f82efd992c763e9a293d26
+  languageName: node
+  linkType: hard
+
 "@fontsource-variable/inter@npm:^5.2.8":
   version: 5.2.8
   resolution: "@fontsource-variable/inter@npm:5.2.8"
   checksum: 10/7f45ab415f0d3c43f31129dd9972dcbfb60ebe51801891b9a88a7ba395d4be664c507b0027138f42307b9ffe91bdd564fcae98bce5b244046274f4aceae07382
+  languageName: node
+  linkType: hard
+
+"@fontsource-variable/petrona@npm:^5.3.0":
+  version: 5.3.0
+  resolution: "@fontsource-variable/petrona@npm:5.3.0"
+  checksum: 10/e26f3a7a9d9a599aad363127ca3cf94af28f13ac078d05812a5ff5fb56f0396376b63d8fc9cc7f00e5af8466571b5be8e5bf4810742b448a79bce019c33391ae
   languageName: node
   linkType: hard
 

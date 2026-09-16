@@ -35,9 +35,43 @@ export const styles: CSSProperties = {
     fontSize: 13,
     fontWeight: 700,
   },
+  /**
+   * The numbers are the interface, so they take the scale and everything else
+   * gets out of the way. Tracking tightens as size grows; a large figure at
+   * default tracking reads loose and unconfident. One face throughout.
+   */
+  displayFace: {
+    fontFeatureSettings: '"tnum"',
+    letterSpacing: '-0.03em',
+    fontWeight: 600,
+  },
+  /** The one number a screen exists to report. At most one per screen. */
+  heroNumber: {
+    fontFeatureSettings: '"tnum"',
+    fontSize: 52,
+    fontWeight: 550,
+    letterSpacing: '-0.042em',
+    lineHeight: 1.02,
+  },
+  /** A secondary balance — an account total, a projected figure. */
+  balanceNumber: {
+    fontFeatureSettings: '"tnum"',
+    fontSize: 34,
+    fontWeight: 560,
+    letterSpacing: '-0.035em',
+    lineHeight: 1.08,
+  },
+  displayText: {
+    fontFeatureSettings: '"tnum"',
+    fontSize: 21,
+    fontWeight: 600,
+    letterSpacing: '-0.025em',
+  },
   veryLargeText: {
     fontSize: 30,
-    fontWeight: 600,
+    fontWeight: 560,
+    letterSpacing: '-0.032em',
+    fontFeatureSettings: '"tnum"',
   },
   largeText: {
     fontSize: 20,
@@ -64,7 +98,8 @@ export const styles: CSSProperties = {
     },
     paddingTop: 8, // height of the titlebar
     [`@media (min-width: ${tokens.breakpoint_small})`]: {
-      paddingTop: 36,
+      // fork: TopNav clears the titlebar on wide layouts; this is just air
+      paddingTop: 14,
     },
   },
   pageContent: {

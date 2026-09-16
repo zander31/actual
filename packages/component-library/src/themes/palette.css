@@ -1,103 +1,126 @@
+/*
+ * Palette — the fork's visual world, after Robinhood's light theme.
+ *
+ * Neutrals carry a slight blue cast; they are not dead grey. One accent does
+ * everything interactive and is the same green that marks a gain. Every step
+ * keeps upstream's OKLCH lightness, so each semantic token's contrast role is
+ * unchanged.
+ *
+ * THE SPLIT THAT MATTERS: the saturated brand steps (#41C74F, #E8562A) are
+ * FILLS — buttons, bars, chart strokes, indicators. They are 2.2:1 and 3.6:1 on
+ * white and must never carry text. Figures and labels use the deep steps
+ * (#187A27, #BF4118), which clear 4.5:1. `node tools/contrast.mjs` proves it.
+ *
+ * Regenerate with: node tools/palette.mjs <upstream palette.css>
+ */
 :root {
   --palette-gray50: #f6f8fa;
-  --palette-gray80: #f0f4f6;
-  --palette-gray100: #e8ecf0;
-  --palette-gray150: #d4dae0;
-  --palette-gray200: #bdc5cf;
-  --palette-gray300: #98a1ae;
-  --palette-gray400: #747c8b;
-  --palette-gray500: #4d5768;
-  --palette-gray600: #373b4a;
-  --palette-gray700: #242733;
-  --palette-gray800: #141520;
-  --palette-gray900: #080811;
+  --palette-gray80: #f1f4f6;
+  --palette-gray100: #e9ecee;
+  --palette-gray150: #d7d9dc;
+  --palette-gray200: #c2c4c7;
+  --palette-gray300: #9ea0a3;
+  --palette-gray400: #797c7f;
+  --palette-gray500: #53575b;
+  --palette-gray600: #393c3f;
+  --palette-gray700: #26282a;
+  --palette-gray800: #141619;
+  --palette-gray900: #08090b;
 
-  --palette-navy50: #f7fafc;
-  --palette-navy100: #e8ecf0;
-  --palette-navy150: #d9e2ec;
-  --palette-navy200: #bcccdc;
-  --palette-navy300: #9fb3c8;
-  --palette-navy400: #829ab1;
-  --palette-navy500: #627d98;
-  --palette-navy600: #486581;
-  --palette-navy700: #334e68;
-  --palette-navy800: #243b53;
-  --palette-navy900: #102a43;
+  --palette-navy50: #f8fafc;
+  --palette-navy100: #e9ecee;
+  --palette-navy150: #dfe1e4;
+  --palette-navy200: #c6cace;
+  --palette-navy300: #acb1b6;
+  --palette-navy400: #92989e;
+  --palette-navy500: #747b82;
+  --palette-navy600: #5c636a;
+  --palette-navy700: #464c53;
+  --palette-navy800: #343a40;
+  --palette-navy900: #23292f;
 
-  --palette-blue50: #f5fcff;
-  --palette-blue100: #e3f0ff;
-  --palette-blue150: #b3d9ff;
-  --palette-blue200: #8bcafd;
-  --palette-blue300: #66b5fa;
-  --palette-blue400: #40a5f7;
-  --palette-blue500: #2b8fed;
-  --palette-blue600: #1980d4;
-  --palette-blue700: #1271bf;
-  --palette-blue800: #0b5fa3;
-  --palette-blue900: #034388;
+  --palette-blue50: #f7fbff;
+  --palette-blue100: #e5f0fd;
+  --palette-blue150: #bad8f9;
+  --palette-blue200: #9cc7f7;
+  --palette-blue300: #7bb2f1;
+  --palette-blue400: #5fa2ec;
+  --palette-blue500: #458fde;
+  --palette-blue600: #3a7fc8;
+  --palette-blue700: #3171b4;
+  --palette-blue800: #275f99;
+  --palette-blue900: #09467d;
 
-  --palette-green50: #fafffd;
-  --palette-green100: #effcf6;
-  --palette-green150: #c6f7e2;
-  --palette-green200: #8eedc7;
-  --palette-green300: #65d6ad;
-  --palette-green400: #3ebd93;
-  --palette-green500: #27ab83;
-  --palette-green600: #199473;
-  --palette-green700: #147d64;
-  --palette-green800: #0c6b58;
-  --palette-green900: #014d40;
+  --palette-green50: #fafffa;
+  --palette-green100: #F0FBF1;
+  --palette-green150: #DCF5DF;
+  --palette-green200: #B4E9BA;
+  --palette-green300: #7FD98A;
+  --palette-green400: #5ACF68;
+  --palette-green500: #41C74F;
+  --palette-green600: #2AAE39;
+  --palette-green700: #187A27;
+  --palette-green800: #146B22;
+  --palette-green900: #0E4E18;
 
-  --palette-orange50: #fffefa;
-  --palette-orange100: #fffbea;
-  --palette-orange150: #fff7c4;
-  --palette-orange200: #fcf088;
-  --palette-orange300: #f5e35d;
-  --palette-orange400: #f2d047;
-  --palette-orange500: #e6bb20;
-  --palette-orange600: #d4a31c;
-  --palette-orange700: #b88115;
-  --palette-orange800: #87540d;
-  --palette-orange900: #733309;
+  --palette-orange50: #fffefb;
+  --palette-orange100: #fffaf2;
+  --palette-orange150: #fff3e2;
+  --palette-orange200: #ffe9c7;
+  --palette-orange300: #ffdaa0;
+  --palette-orange400: #FFC24D;
+  --palette-orange500: #F5A100;
+  --palette-orange600: #D98A00;
+  --palette-orange700: #b78114;
+  --palette-orange800: #815800;
+  --palette-orange900: #614100;
 
-  --palette-red50: #fff1f1;
-  --palette-red100: #ffe3e3;
-  --palette-red150: #ffbdbd;
-  --palette-red200: #ff9b9b;
-  --palette-red300: #f86a6a;
-  --palette-red400: #ef4e4e;
-  --palette-red500: #e12d39;
-  --palette-red600: #cf1124;
-  --palette-red700: #ab091e;
-  --palette-red800: #8a041a;
-  --palette-red900: #610316;
+  --palette-red50: #fff1ed;
+  --palette-red100: #FDEDE8;
+  --palette-red150: #FBD8CC;
+  --palette-red200: #F7B6A0;
+  --palette-red300: #F08A66;
+  --palette-red400: #EC6E42;
+  --palette-red500: #E8562A;
+  --palette-red600: #D14A21;
+  --palette-red700: #BF4118;
+  --palette-red800: #9A3210;
+  --palette-red900: #75260C;
 
-  --palette-purple50: #f9f6fe;
-  --palette-purple100: #f2ebfe;
-  --palette-purple125: #e4d4ff;
-  --palette-purple150: #dac4ff;
-  --palette-purple200: #b990ff;
-  --palette-purple300: #a368fc;
-  --palette-purple400: #9446ed;
-  --palette-purple500: #8719e0;
-  --palette-purple600: #7a0ecc;
-  --palette-purple700: #690cb0;
-  --palette-purple800: #580a94;
-  --palette-purple900: #44056e;
+  --palette-purple50: #ecfeec;
+  --palette-purple100: #F0FBF1;
+  --palette-purple125: #E8F8EA;
+  --palette-purple150: #DCF5DF;
+  --palette-purple200: #B4E9BA;
+  --palette-purple300: #5ACF68;
+  --palette-purple400: #4BCB58;
+  --palette-purple500: #41C74F;
+  --palette-purple600: #187A27;
+  --palette-purple700: #146B22;
+  --palette-purple800: #0E4E18;
+  --palette-purple900: #0A3B12;
 
   --palette-white: #ffffff;
   --palette-black: #000000;
-  --palette-hover: #fafafa;
-  --palette-border: #e8ecf0;
-  --palette-selected: #b3d9ff;
+  --palette-hover: #f7f9fb;
+  --palette-border: #e3e7ec;
+  --palette-selected: #dcf5df;
 
-  --palette-chartQual1: #45b29d;
-  --palette-chartQual2: #efc94c;
-  --palette-chartQual3: #e27a3f;
-  --palette-chartQual4: #df5a49;
-  --palette-chartQual5: #5f91b8;
-  --palette-chartQual6: #e2a37f;
-  --palette-chartQual7: #55dbc1;
-  --palette-chartQual8: #efda97;
-  --palette-chartQual9: #df948a;
+  --palette-chartQual1: #41C74F; /* brand green */
+  --palette-chartQual2: #1c1e21; /* ink */
+  --palette-chartQual3: #E8562A; /* brand red */
+  --palette-chartQual4: #7A5AF8; /* violet */
+  --palette-chartQual5: #2E90FA; /* blue */
+  --palette-chartQual6: #F5A100; /* amber */
+  --palette-chartQual7: #15B79E; /* teal */
+  --palette-chartQual8: #98A2B3; /* grey */
+  --palette-chartQual9: #EE46BC; /* magenta */
+
+  /* the primary action is high-contrast neutral, never the accent */
+  --palette-ink: #000000;
+  --palette-ink900: #1c1e21;
+  --palette-ink700: #35383d;
+  /* the highlight chip — offers, streaks, anything celebratory */
+  --palette-lime: #ccff00;
+  --palette-lime600: #a8d400;
 }
