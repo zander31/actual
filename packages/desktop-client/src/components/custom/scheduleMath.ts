@@ -180,3 +180,31 @@ export function historyWentWrong(values: number[], isIncome: boolean) {
   const last = values[values.length - 1];
   return isIncome ? last < first * 0.98 : last > first * 1.02;
 }
+
+export type Coverage = {
+  /** Scheduled outflow as a fraction of budgeted outflow, capped at 1. */
+  covered: number;
+  /** Budgeted spending no schedule projects, as a positive number. */
+  uncovered: number;
+};
+
+/**
+ * How much of a month's budgeted spending the schedules actually project.
+ *
+ * This is the number that says whether the forward-looking surfaces can be
+ * trusted at all. Every projection in the app comes from schedules, so
+ * spending that is budgeted but not scheduled is spending the calendar, the
+ * forecast and the sentinel are all blind to — and a budget can be complete
+ * to the cent while the forecast is still mostly guesswork. Returns null when
+ * nothing is budgeted yet, because there is then nothing to be short of.
+ */
+export function scheduleCoverage(
+  scheduledOutflow: number,
+  budgetedOutflow: number,
+): Coverage | null {
+  if (budgetedOutflow <= 0) return null;
+  return {
+    covered: Math.min(1, scheduledOutflow / budgetedOutflow),
+    uncovered: Math.max(0, budgetedOutflow - scheduledOutflow),
+  };
+}

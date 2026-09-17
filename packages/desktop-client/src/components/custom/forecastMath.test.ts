@@ -2,10 +2,12 @@ import {
   applyWhatIf,
   combineByDate,
   dayColor,
+  forecastWindow,
+  hasScheduledIncome,
   monthEnds,
-  monthlyTotals,
+  monthlyNet,
+  netFlowRates,
   projectBands,
-  variableSpendRates,
 } from './forecastMath';
 
 const pt = (date: string, balance: number, accountId = 'a') => ({
@@ -14,6 +16,11 @@ const pt = (date: string, balance: number, accountId = 'a') => ({
   accountId,
   accountName: accountId,
   transactions: [],
+});
+
+const withTxn = (date: string, balance: number, amount: number) => ({
+  ...pt(date, balance),
+  transactions: [{ amount, payee: 'p', scheduleId: 's', scheduleName: 'Pay' }],
 });
 
 describe('forecastMath', () => {
@@ -45,31 +52,91 @@ describe('forecastMath', () => {
     expect(out.map(p => p.balance)).toEqual([1000, 700, 600]);
   });
 
-  test('variableSpendRates uses min/mean/max of monthly totals per day', () => {
-    const r = variableSpendRates([3040, 6080, 9120], 30.4);
-    expect(r).toEqual({ best: 100, expected: 200, worst: 300 });
-    expect(variableSpendRates([])).toEqual({ best: 0, expected: 0, worst: 0 });
+  // The month-to-month bug: asking for a future month on its own makes
+  // forecast/generate open it at today's balance, dropping every schedule
+  // between now and then. The window has to reach back to today.
+  test('forecastWindow starts at today for a future month, and at the 1st otherwise', () => {
+    expect(forecastWindow('2026-11', '2026-09-17')).toEqual({
+      startDate: '2026-09-17',
+      endDate: '2026-11-30',
+      first: '2026-11-01',
+    });
+    expect(forecastWindow('2026-09', '2026-09-17')).toEqual({
+      startDate: '2026-09-01',
+      endDate: '2026-09-30',
+      first: '2026-09-01',
+    });
+    expect(forecastWindow('2026-06', '2026-09-17')).toEqual({
+      startDate: '2026-06-01',
+      endDate: '2026-06-30',
+      first: '2026-06-01',
+    });
   });
 
-  test('projectBands overlays cumulative spend starting the day after index 0', () => {
+  test('hasScheduledIncome sees a deposit, ignores outflows only', () => {
+    expect(hasScheduledIncome([withTxn('2026-09-01', 0, 250_000)])).toBe(true);
+    expect(hasScheduledIncome([withTxn('2026-09-01', 0, -250_000)])).toBe(
+      false,
+    );
+    expect(hasScheduledIncome([pt('2026-09-01', 0)])).toBe(false);
+  });
+
+  test('monthlyNet keeps both signs and reports an empty month as zero', () => {
+    expect(
+      monthlyNet(
+        [
+          { date: '2026-06-03', amount: -100 },
+          { date: '2026-06-20', amount: 400 },
+          { date: '2026-08-01', amount: -10 },
+        ],
+        ['2026-06', '2026-07', '2026-08'],
+      ),
+    ).toEqual([300, 0, -10]);
+  });
+
+  test('monthlyNet ignores months outside the asked-for list', () => {
+    expect(
+      monthlyNet([{ date: '2026-05-01', amount: -999 }], ['2026-06']),
+    ).toEqual([0]);
+  });
+
+  test('netFlowRates spans the months observed, signed', () => {
+    expect(netFlowRates([-3040, 6080], 30.4)).toEqual({
+      best: 200,
+      expected: 50,
+      worst: -100,
+    });
+  });
+
+  test('netFlowRates refuses a sample too thin to carry a band', () => {
+    expect(netFlowRates([])).toBeNull();
+    expect(netFlowRates([-3040])).toBeNull();
+  });
+
+  // A household that earns more outside its schedules than it spends must
+  // project upward. Counting outflows alone always drove this negative.
+  test('projectBands follows net flow in both directions', () => {
     const pts = combineByDate([
       pt('2026-09-01', 10_000),
       pt('2026-09-02', 10_000),
-      pt('2026-09-03', 20_000),
+      pt('2026-09-03', 10_000),
     ]);
-    const b = projectBands(pts, { best: 100, expected: 200, worst: 300 });
-    expect(b[0]).toMatchObject({
-      schedules: 10_000,
-      expected: 10_000,
-      best: 10_000,
-      worst: 10_000,
-    });
-    expect(b[2]).toMatchObject({
-      schedules: 20_000,
-      expected: 19_600,
-      best: 19_800,
-      worst: 19_400,
-    });
+    const up = projectBands(pts, { best: 300, expected: 200, worst: -100 });
+    expect(up.map(b => b.expected)).toEqual([10_000, 10_200, 10_400]);
+    expect(up.map(b => b.worst)).toEqual([10_000, 9_900, 9_800]);
+    expect(up.map(b => b.best)).toEqual([10_000, 10_300, 10_600]);
+  });
+
+  test('projectBands collapses onto the schedules line with no usable sample', () => {
+    const pts = combineByDate([
+      pt('2026-09-01', 10_000),
+      pt('2026-09-02', 9_000),
+    ]);
+    const b = projectBands(pts, null);
+    expect(b.map(p => [p.best, p.expected, p.worst])).toEqual([
+      [10_000, 10_000, 10_000],
+      [9_000, 9_000, 9_000],
+    ]);
   });
 
   test('monthEnds returns the last point of each month in the series (current month only if it reaches month end)', () => {
@@ -80,9 +147,7 @@ describe('forecastMath', () => {
       pt('2026-09-30', 4),
       pt('2026-10-01', 5),
     ]);
-    const ends = monthEnds(
-      projectBands(pts, { best: 0, expected: 0, worst: 0 }),
-    );
+    const ends = monthEnds(projectBands(pts, null));
     expect(ends.map(e => e.date)).toEqual([
       '2026-08-31',
       '2026-09-30',
@@ -93,20 +158,8 @@ describe('forecastMath', () => {
       pt('2026-08-25', 2),
       pt('2026-09-30', 4),
     ]);
-    expect(
-      monthEnds(projectBands(pts2, { best: 0, expected: 0, worst: 0 })).map(
-        e => e.date,
-      ),
-    ).toEqual(['2026-09-30']);
-  });
-
-  test('monthlyTotals groups outflows into positive per-month totals', () => {
-    expect(
-      monthlyTotals([
-        { date: '2026-06-03', amount: -100 },
-        { date: '2026-06-20', amount: -50 },
-        { date: '2026-07-01', amount: -10 },
-      ]),
-    ).toEqual([150, 10]);
+    expect(monthEnds(projectBands(pts2, null)).map(e => e.date)).toEqual([
+      '2026-09-30',
+    ]);
   });
 });

@@ -28,10 +28,13 @@ import { css, keyframes } from '@emotion/css';
 import { Page } from '#components/Page';
 import { useAccounts } from '#hooks/useAccounts';
 import { useFormat } from '#hooks/useFormat';
+import { useNavigate } from '#hooks/useNavigate';
 
 import {
   applyWhatIf,
   combineByDate,
+  forecastWindow,
+  hasScheduledIncome,
   RED_BELOW,
   YELLOW_BELOW,
 } from './forecastMath';
@@ -43,6 +46,7 @@ import {
   Direction,
   HeroNumber,
   instrumentPage,
+  NoticeBar,
   RoundButton,
   Rule,
   sectionLabel,
@@ -68,6 +72,7 @@ export function CalendarPage() {
   const { t } = useTranslation();
   const { isNarrowWidth } = useResponsive();
   const format = useFormat();
+  const navigate = useNavigate();
   const { data: accounts = [] } = useAccounts();
   const onBudget = useMemo(
     () => accounts.filter(a => !a.closed && !a.offbudget),
@@ -89,25 +94,30 @@ export function CalendarPage() {
     }
   }, [accountId, onBudget]);
 
+  const today = monthUtils.currentDay();
+  // The window has to reach back to today even when the month is ahead of us,
+  // or the projection opens that month at today's balance and loses every
+  // schedule in between — see forecastWindow.
+  const window = useMemo(() => forecastWindow(month, today), [month, today]);
+
   useEffect(() => {
     if (!accountId) return;
     const ids = accountId === 'all' ? onBudget.map(a => a.id) : [accountId];
     let cancelled = false;
     void send('forecast/generate', {
       accountIds: ids,
-      startDate: monthUtils.firstDayOfMonth(month),
-      endDate: monthUtils.lastDayOfMonth(month),
+      startDate: window.startDate,
+      endDate: window.endDate,
     }).then(res => {
       if (!cancelled) setPoints(res.dataPoints);
     });
     return () => {
       cancelled = true;
     };
-  }, [accountId, month, onBudget]);
+  }, [accountId, window, onBudget]);
 
   const first = monthUtils.firstDayOfMonth(month);
   const last = monthUtils.lastDayOfMonth(month);
-  const today = monthUtils.currentDay();
 
   // A what-if set before this month (today's spend, viewed from next month)
   // still lowers every day of it, so it lands on the 1st.
@@ -120,9 +130,20 @@ export function CalendarPage() {
     return out;
   }, [whatIf, first]);
 
+  const combined = useMemo(() => combineByDate(points), [points]);
   const days: DayPoint[] = useMemo(
-    () => applyWhatIf(combineByDate(points), monthWhatIf),
-    [points, monthWhatIf],
+    () =>
+      applyWhatIf(
+        combined.filter(d => d.date >= first),
+        monthWhatIf,
+      ),
+    [combined, first, monthWhatIf],
+  );
+  // Nothing ahead is knowable without income schedules: the whole projection
+  // is only the bills, so it can only ever fall.
+  const noIncomeSchedule = useMemo(
+    () => points.length > 0 && !hasScheduledIncome(combined),
+    [points.length, combined],
   );
   const byDate = useMemo(() => new Map(days.map(d => [d.date, d])), [days]);
 
@@ -390,6 +411,32 @@ export function CalendarPage() {
           </View>
           {simulate}
         </View>
+
+        {noIncomeSchedule && (
+          <NoticeBar
+            title={
+              <Trans>
+                No income is scheduled in this window, so the projection is
+                bills only
+              </Trans>
+            }
+            detail={
+              <Trans>
+                Every day below can only fall. Add your pay as a schedule and
+                this grid becomes the real end-of-day balance.
+              </Trans>
+            }
+            action={
+              <Button
+                variant="primary"
+                onPress={() => navigate('/schedules')}
+                style={{ height: 32, padding: '0 14px', fontSize: 13 }}
+              >
+                <Trans>Set up schedules</Trans>
+              </Button>
+            }
+          />
+        )}
 
         {/* month header: step, name, today, account — legend opposite */}
         <View

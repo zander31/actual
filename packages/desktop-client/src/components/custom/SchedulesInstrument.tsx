@@ -34,9 +34,11 @@ import { useLocale } from '#hooks/useLocale';
 import { useQuery } from '#hooks/useQuery';
 import { getRecurringDescription, getStatusLabel } from '#util/schedule';
 
+import { cell, useCells } from './EnvelopeRowParts';
 import {
   columnLabel,
   Direction,
+  NoticeBar,
   PageHero,
   PillTabs,
   Sparkline,
@@ -49,6 +51,7 @@ import {
   chargeHistory,
   groupCharges,
   historyWentWrong,
+  scheduleCoverage,
   windowTotals,
 } from './scheduleMath';
 import type { Charge, Drift } from './scheduleMath';
@@ -112,6 +115,7 @@ export function SchedulesHero({
   onFilter,
   showDrifting,
   onAdd,
+  onDiscover,
   search,
 }: {
   schedules: readonly ScheduleEntity[];
@@ -121,6 +125,7 @@ export function SchedulesHero({
   onFilter: (filter: ScheduleFilter) => void;
   showDrifting: boolean;
   onAdd: () => void;
+  onDiscover: () => void;
   /** The existing search box, set opposite the tabs. */
   search: ReactNode;
 }) {
@@ -133,6 +138,14 @@ export function SchedulesHero({
     () => windowTotals(schedules, statuses, today, until),
     [schedules, statuses, today, until],
   );
+
+  // What the budget says a month of spending costs, against what the schedules
+  // actually project. Every forward-looking surface reads schedules and nothing
+  // else, so the shortfall is the part of the plan none of them can see.
+  const budgetCell = cell(monthUtils.currentMonth(), 'total-budgeted');
+  const budgetCells = useCells(useMemo(() => [budgetCell], [budgetCell]));
+  const budgetedOutflow = -(budgetCells[budgetCell] ?? 0);
+  const coverage = scheduleCoverage(totals.outflow, budgetedOutflow);
   const previous = useMemo(
     () =>
       chargedBetween(charges, monthUtils.subDays(today, WINDOW_DAYS), today),
@@ -232,6 +245,63 @@ export function SchedulesHero({
           </Text>
         ) : null}
       </PageHero>
+
+      {schedules.length === 0 ? (
+        <NoticeBar
+          title={
+            <Trans>
+              Nothing is scheduled yet, so nothing ahead can be projected
+            </Trans>
+          }
+          detail={
+            <Trans>
+              The calendar, the forecast and the low-balance alerts are all
+              built from schedules. Actual can propose them from your own
+              transaction history — it looks for the same payee and amount
+              recurring on the same sort of date.
+            </Trans>
+          }
+          action={
+            <Button
+              variant="primary"
+              onPress={onDiscover}
+              style={{ height: 34, padding: '0 16px', fontSize: 13 }}
+            >
+              <Trans>Find them in my transactions</Trans>
+            </Button>
+          }
+        />
+      ) : coverage && coverage.uncovered > 0 ? (
+        <NoticeBar
+          title={
+            <PrivacyFilter>
+              {t('{{amount}} of what you budget each month is not scheduled', {
+                amount: money(format, coverage.uncovered),
+              })}
+            </PrivacyFilter>
+          }
+          detail={
+            <PrivacyFilter>
+              {t(
+                'The schedules project {{scheduled}} over the next 30 days against the {{budgeted}} you have assigned this month. The calendar and the forecast can only see the scheduled part.',
+                {
+                  scheduled: money(format, totals.outflow),
+                  budgeted: money(format, budgetedOutflow),
+                },
+              )}
+            </PrivacyFilter>
+          }
+          action={
+            <Button
+              variant="primary"
+              onPress={onDiscover}
+              style={{ height: 34, padding: '0 16px', fontSize: 13 }}
+            >
+              <Trans>Find more in my transactions</Trans>
+            </Button>
+          }
+        />
+      ) : null}
 
       <View
         style={{

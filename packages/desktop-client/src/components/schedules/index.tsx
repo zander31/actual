@@ -143,6 +143,7 @@ export function Schedules() {
             onFilter={setTab}
             showDrifting={drifts.size > 0}
             onAdd={onAdd}
+            onDiscover={onDiscover}
             search={
               <Search
                 placeholder={t('Filter schedules…')}
