@@ -1,4 +1,5 @@
 // Pure helpers for the fork's Calendar + Forecast pages. All amounts are integer cents.
+import * as monthUtils from '@actual-app/core/shared/months';
 import type { ForecastDataPoint } from '@actual-app/core/types/models/forecast';
 
 export type DayPoint = {
@@ -23,6 +24,27 @@ export function combineByDate(points: ForecastDataPoint[]): DayPoint[] {
   return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
 }
 
+/**
+ * The window `forecast/generate` has to be asked for so that `month` reads
+ * honestly, and the first day of `month` itself.
+ *
+ * The handler seeds its running balance from *posted* transactions before
+ * `startDate` and only injects schedule occurrences from today onward. Ask it
+ * for a future month on its own and it opens that month at today's balance,
+ * silently dropping every bill and paycheck scheduled between now and then —
+ * which is why each month used to restart from the same figure instead of
+ * carrying on from the one before. Always start no later than today and slice
+ * the answer back down to the month.
+ */
+export function forecastWindow(month: string, today: string) {
+  const first = monthUtils.firstDayOfMonth(month);
+  return {
+    startDate: first < today ? first : today,
+    endDate: monthUtils.lastDayOfMonth(month),
+    first,
+  };
+}
+
 export const RED_BELOW = 50_000; // $500
 export const YELLOW_BELOW = 100_000; // $1,000
 
@@ -44,20 +66,57 @@ export function applyWhatIf(
   });
 }
 
-export type SpendRates = { best: number; expected: number; worst: number }; // cents per day, >= 0
+/** Whether any scheduled deposit lands in the window at all. */
+export function hasScheduledIncome(points: DayPoint[]): boolean {
+  return points.some(p => p.transactions.some(t => t.amount > 0));
+}
 
-/** Monthly variable-spend totals (positive cents, one per month) → per-day rates. */
-export function variableSpendRates(
-  monthlyTotals: number[],
+/**
+ * Signed cents per day of everything the schedules do not already account for.
+ * Positive is money arriving. `expected` is the mean month, `best` the most
+ * favourable month observed and `worst` the least.
+ */
+export type NetRates = { best: number; expected: number; worst: number };
+
+/**
+ * Net non-scheduled flow per calendar month, signed, one entry per month in
+ * `months` — a month with nothing in it is a real zero, not a gap.
+ *
+ * Both signs are kept on purpose. Counting only the outflows made the forecast
+ * subtract a household's entire spending while adding none of its income, so
+ * any file whose paycheques are not schedules projected straight to zero no
+ * matter how much it actually earned.
+ */
+export function monthlyNet(
+  txns: ReadonlyArray<{ date: string; amount: number }>,
+  months: readonly string[],
+): number[] {
+  const byMonth = new Map(months.map(m => [m, 0]));
+  for (const t of txns) {
+    const key = t.date.slice(0, 7);
+    if (byMonth.has(key)) byMonth.set(key, byMonth.get(key)! + t.amount);
+  }
+  return months.map(m => byMonth.get(m) ?? 0);
+}
+
+/** How many complete months of history the bands need before they mean anything. */
+export const MIN_SAMPLE_MONTHS = 2;
+
+/**
+ * Monthly net totals → a per-day band. Returns null on too thin a sample: one
+ * month makes best, expected and worst identical, which reads as certainty the
+ * data cannot support.
+ */
+export function netFlowRates(
+  monthlyNets: readonly number[],
   daysPerMonth = 30.4,
-): SpendRates {
-  const totals = monthlyTotals.filter(t => t > 0);
-  if (totals.length === 0) return { best: 0, expected: 0, worst: 0 };
-  const mean = totals.reduce((s, t) => s + t, 0) / totals.length;
+): NetRates | null {
+  if (monthlyNets.length < MIN_SAMPLE_MONTHS) return null;
+  const mean = monthlyNets.reduce((s, t) => s + t, 0) / monthlyNets.length;
   return {
-    best: Math.min(...totals) / daysPerMonth,
+    best: Math.max(...monthlyNets) / daysPerMonth,
     expected: mean / daysPerMonth,
-    worst: Math.max(...totals) / daysPerMonth,
+    worst: Math.min(...monthlyNets) / daysPerMonth,
   };
 }
 
@@ -69,17 +128,21 @@ export type BandPoint = {
   worst: number;
 };
 
-/** Overlay cumulative variable spend on the schedules-only projection. Day 0 is "today" (no overlay). */
+/**
+ * Overlay cumulative non-scheduled flow on the schedules-only projection. Day 0
+ * is the start of the series and carries no overlay. With no usable sample the
+ * three bands collapse onto the schedules line rather than inventing a spread.
+ */
 export function projectBands(
   points: DayPoint[],
-  rates: SpendRates,
+  rates: NetRates | null,
 ): BandPoint[] {
   return points.map((p, i) => ({
     date: p.date,
     schedules: p.balance,
-    expected: Math.round(p.balance - rates.expected * i),
-    best: Math.round(p.balance - rates.best * i),
-    worst: Math.round(p.balance - rates.worst * i),
+    expected: Math.round(p.balance + (rates?.expected ?? 0) * i),
+    best: Math.round(p.balance + (rates?.best ?? 0) * i),
+    worst: Math.round(p.balance + (rates?.worst ?? 0) * i),
   }));
 }
 
@@ -98,17 +161,4 @@ export function monthEnds(bands: BandPoint[], count = 3): BandPoint[] {
 function lastDayOf(month: string): string {
   const [y, m] = month.split('-').map(Number);
   return String(new Date(y, m, 0).getDate()).padStart(2, '0');
-}
-
-/** Group transactions (date, amount<0) into positive monthly totals, ordered by month. */
-export function monthlyTotals(
-  txns: { date: string; amount: number }[],
-): number[] {
-  const m = new Map<string, number>();
-  for (const t of txns) {
-    m.set(t.date.slice(0, 7), (m.get(t.date.slice(0, 7)) ?? 0) - t.amount);
-  }
-  return [...m.entries()]
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([, v]) => v);
 }

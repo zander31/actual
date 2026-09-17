@@ -7,6 +7,7 @@ import {
   groupCharges,
   historyWentWrong,
   occurrencesBetween,
+  scheduleCoverage,
 } from './scheduleMath';
 
 function schedule(overrides: Partial<ScheduleEntity>): ScheduleEntity {
@@ -126,5 +127,33 @@ describe('occurrencesBetween', () => {
     expect(
       occurrencesBetween(s, 'upcoming', '2026-09-17', '2026-10-10'),
     ).toEqual(['2026-09-20', '2026-09-27', '2026-10-04']);
+  });
+});
+
+describe('scheduleCoverage', () => {
+  test('reports the budgeted spending no schedule projects', () => {
+    expect(scheduleCoverage(110_000, 420_000)).toEqual({
+      covered: 110_000 / 420_000,
+      uncovered: 310_000,
+    });
+  });
+
+  test('a fully scheduled budget is covered, with nothing left over', () => {
+    expect(scheduleCoverage(420_000, 420_000)).toEqual({
+      covered: 1,
+      uncovered: 0,
+    });
+  });
+
+  test('scheduling more than is budgeted still caps at covered', () => {
+    expect(scheduleCoverage(500_000, 420_000)).toEqual({
+      covered: 1,
+      uncovered: 0,
+    });
+  });
+
+  test('nothing budgeted yet means there is nothing to be short of', () => {
+    expect(scheduleCoverage(0, 0)).toBeNull();
+    expect(scheduleCoverage(110_000, 0)).toBeNull();
   });
 });

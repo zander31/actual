@@ -37,10 +37,13 @@ import { useCategories } from '#hooks/useCategories';
 import { useFeatureFlag } from '#hooks/useFeatureFlag';
 import { useFormat } from '#hooks/useFormat';
 import { useLocale } from '#hooks/useLocale';
+import { useOnBudgetAccounts } from '#hooks/useOnBudgetAccounts';
 import { usePayeesById } from '#hooks/usePayees';
+import { useQuery } from '#hooks/useQuery';
 import { useSchedules } from '#hooks/useSchedules';
 import { SheetNameProvider } from '#hooks/useSheetName';
 import { pushModal } from '#modals/modalsSlice';
+import { uncategorizedTransactions } from '#queries';
 import { useDispatch } from '#redux';
 
 import { cell, useCells } from './EnvelopeRowParts';
@@ -53,6 +56,8 @@ import {
   Swatch,
   wash,
 } from './primitives';
+import { findLeaks, reconcile } from './reconcileMath';
+import type { LeakRow } from './reconcileMath';
 
 /** The rail's width, and the gap it keeps from the envelopes. */
 export const BUDGET_RAIL_WIDTH = 340;
@@ -282,18 +287,24 @@ const segment = {
 export function MonthStandsCard({ month }: { month: string }) {
   const { t } = useTranslation();
   const format = useFormat();
+  const locale = useLocale();
+  const prev = monthUtils.prevMonth(month);
   const cells = useCells([
     cell(month, 'total-budgeted'),
     cell(month, 'available-funds'),
     cell(month, 'total-spent'),
     cell(month, 'total-leftover'),
     cell(month, 'to-budget'),
+    cell(month, 'last-month-overspent'),
   ]);
   const assigned = -(cells[cell(month, 'total-budgeted')] ?? 0);
   const available = cells[cell(month, 'available-funds')] ?? 0;
   const spent = Math.max(0, -(cells[cell(month, 'total-spent')] ?? 0));
   const held = Math.max(0, cells[cell(month, 'total-leftover')] ?? 0);
   const free = cells[cell(month, 'to-budget')] ?? 0;
+  // Upstream already works this out and nothing ever showed it: envelopes left
+  // overspent last month come straight off this month's available money.
+  const carriedOverspend = -(cells[cell(month, 'last-month-overspent')] ?? 0);
   const total = spent + held + Math.max(0, free) || 1;
   const pct = (n: number) => `${((n / total) * 100).toFixed(1)}%`;
 
@@ -397,6 +408,27 @@ export function MonthStandsCard({ month }: { month: string }) {
           />
         </View>
       </PrivacyFilter>
+      {carriedOverspend > 0 ? (
+        <PrivacyFilter>
+          <Text
+            style={{
+              fontSize: 13,
+              fontWeight: 500,
+              lineHeight: 1.45,
+              color: theme.errorText,
+              marginTop: 12,
+            }}
+          >
+            {t(
+              '{{amount}} of this available has already gone to cover envelopes left overspent in {{month}}.',
+              {
+                amount: format(carriedOverspend, 'financial'),
+                month: monthUtils.format(prev, 'MMMM', locale),
+              },
+            )}
+          </Text>
+        </PrivacyFilter>
+      ) : null}
     </View>
   );
 }
@@ -546,11 +578,17 @@ function OverspentItem({
   isLast: boolean;
 }) {
   const { t } = useTranslation();
+  const locale = useLocale();
   const format = useFormat();
   const { onBudgetAction } = useEnvelopeBudget();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const { category, balance, spent } = item;
+  const nextMonth = monthUtils.format(
+    monthUtils.nextMonth(month),
+    'MMMM',
+    locale,
+  );
 
   return (
     <RailItem isLast={isLast}>
@@ -565,6 +603,13 @@ function OverspentItem({
           {t('Spent {{spent}} against {{had}} in the envelope.', {
             spent: format(spent, 'financial'),
             had: format(Math.max(0, balance + spent), 'financial'),
+          })}
+        </Text>
+        {/* Overspending never disappears: left alone it quietly comes off the
+            next month's money, which is the part nobody sees happening. */}
+        <Text style={railItemNote}>
+          {t('Left uncovered, it comes out of {{month}} instead.', {
+            month: nextMonth,
           })}
         </Text>
       </PrivacyFilter>
@@ -904,6 +949,248 @@ function DueBeforePaydayCard() {
   );
 }
 
+// ── Bank against budget ──────────────────────────────────────────────────────
+
+/** How many of the transactions behind a gap are worth naming in the card. */
+const MAX_LEAKS = 4;
+
+/**
+ * The one identity envelope budgeting rests on, and the only place the app
+ * states it: what the envelopes, the unassigned money and anything held back
+ * add up to has to equal what the on-budget accounts actually hold.
+ *
+ * Whenever they disagree the budget is claiming money the bank does not have.
+ * Moving cash to an account the budget does not track is the common way in:
+ * the checking balance drops, the envelope that was meant to cover it stays
+ * full, and the household reads the same money twice — once as savings, once
+ * as budget. Every cent of the difference is a transaction no category saw, so
+ * the card names them rather than leaving a mystery figure.
+ */
+function BankAgainstBudgetCard({ month }: { month: string }) {
+  const { t } = useTranslation();
+  const locale = useLocale();
+  const format = useFormat();
+  const { data: onBudgetAccounts = [] } = useOnBudgetAccounts();
+  const { data: { grouped = [] } = {} } = useCategories();
+
+  // The sheet only knows transactions dated up to the end of this month, so
+  // the bank side is cut off at the same day or the two can never agree.
+  const through = monthUtils.lastDayOfMonth(monthUtils.firstDayOfMonth(month));
+
+  // Matches the `sum-amount-<category>` cells exactly: on-budget accounts,
+  // leaf transactions, no filter on closed — closing an account in Actual
+  // moves its balance out, so it contributes nothing, and leaving it in keeps
+  // the identity exact rather than nearly right.
+  const { data: bank } = useQuery<number>(
+    () =>
+      q('transactions')
+        .filter({
+          'account.offbudget': false,
+          is_parent: false,
+          date: { $lte: through },
+        })
+        .calculate({ $sum: '$amount' }),
+    [through],
+  );
+
+  // Upstream's own definition of money the budget never saw: on an on-budget
+  // account, no category, and either not a transfer at all or a transfer to an
+  // account the budget does not track. A move between two on-budget accounts
+  // has both legs inside the total, so it nets to zero and is rightly absent.
+  const { data: uncategorised } = useQuery<LeakRow>(
+    () =>
+      uncategorizedTransactions()
+        .filter({ is_parent: false, date: { $lte: through } })
+        .select([
+          'id',
+          'date',
+          'amount',
+          { payeeName: 'payee.name' },
+          { accountName: 'account.name' },
+          { transferAccount: 'payee.transfer_acct' },
+        ])
+        .orderBy({ date: 'desc' }),
+    [through],
+  );
+
+  const expenseCategories = useMemo(
+    () => grouped.filter(g => !g.is_income).flatMap(g => g.categories ?? []),
+    [grouped],
+  );
+  const names = useMemo(
+    () => [
+      cell(month, 'to-budget'),
+      cell(month, 'buffered-selected'),
+      ...expenseCategories.map(c => cell(month, `leftover-${c.id}`)),
+    ],
+    [month, expenseCategories],
+  );
+  const cells = useCells(names);
+
+  // An unloaded cell is not a zero: reconciling against a half-bound sheet
+  // would invent a gap and send someone hunting for a transaction that is fine.
+  const ready =
+    bank != null &&
+    uncategorised != null &&
+    names.every(name => cells[name] !== undefined);
+
+  const onBudgetIds = useMemo(
+    () => new Set(onBudgetAccounts.map(a => a.id)),
+    [onBudgetAccounts],
+  );
+
+  const result = useMemo(() => {
+    if (!ready) return null;
+    return reconcile({
+      inTheBank: bank?.[0] ?? 0,
+      envelopeBalances: expenseCategories.map(
+        c => cells[cell(month, `leftover-${c.id}`)] ?? 0,
+      ),
+      toBudget: cells[cell(month, 'to-budget')] ?? 0,
+      buffered: cells[cell(month, 'buffered-selected')] ?? 0,
+      leaks: findLeaks(uncategorised ?? [], onBudgetIds),
+    });
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- cells is rebuilt per bound cell
+  }, [
+    ready,
+    bank,
+    uncategorised,
+    onBudgetIds,
+    expenseCategories,
+    cells,
+    month,
+  ]);
+
+  const money = (cents: number) => format(cents, 'financial');
+
+  if (!result) {
+    return (
+      <RailCard title={<Trans>Bank against budget</Trans>}>
+        <RailEmpty>
+          <Trans>Checking…</Trans>
+        </RailEmpty>
+      </RailCard>
+    );
+  }
+
+  const { gap, inTheBank, inTheBudget, leaks, explained } = result;
+  const shown = leaks.slice(0, MAX_LEAKS);
+  const hidden = leaks.length - shown.length;
+
+  if (gap === 0) {
+    return (
+      <RailCard
+        title={<Trans>Bank against budget</Trans>}
+        count={<PrivacyFilter>{money(inTheBank)}</PrivacyFilter>}
+        countColor={theme.noticeText}
+      >
+        <RailEmpty>
+          <Trans>
+            The envelopes, the unassigned money and the accounts agree to the
+            cent. Nothing is being counted twice.
+          </Trans>
+        </RailEmpty>
+      </RailCard>
+    );
+  }
+
+  return (
+    <RailCard
+      title={<Trans>Bank against budget</Trans>}
+      count={<PrivacyFilter>{money(gap)}</PrivacyFilter>}
+      countColor={theme.errorText}
+    >
+      <RailItem isLast={shown.length === 0 && hidden === 0}>
+        <PrivacyFilter>
+          <Text style={railItemTitle}>
+            {gap < 0
+              ? t('The budget claims {{amount}} the accounts do not hold', {
+                  amount: money(-gap),
+                })
+              : t('The accounts hold {{amount}} no envelope has claimed', {
+                  amount: money(gap),
+                })}
+          </Text>
+          <Text style={railItemNote}>
+            {t(
+              '{{bank}} in the accounts against {{budget}} across the envelopes, unassigned and held back.',
+              {
+                bank: money(inTheBank),
+                budget: money(inTheBudget),
+              },
+            )}
+          </Text>
+          {!explained ? (
+            <Text style={railItemNote}>
+              <Trans>
+                Part of this is older than the transactions below — check for
+                split transactions whose parts are not all categorised.
+              </Trans>
+            </Text>
+          ) : null}
+        </PrivacyFilter>
+      </RailItem>
+      {shown.map((leak, i) => (
+        <RailItem key={leak.id} isLast={i === shown.length - 1 && hidden === 0}>
+          <PrivacyFilter>
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'baseline',
+                justifyContent: 'space-between',
+                gap: 12,
+              }}
+            >
+              <Text
+                style={{
+                  ...railItemTitle,
+                  fontWeight: 500,
+                  minWidth: 0,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {leak.payeeName || t('No payee')}
+              </Text>
+              <Text
+                style={{
+                  ...styles.tnum,
+                  fontSize: 15,
+                  fontWeight: 600,
+                  letterSpacing: '-0.018em',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {money(leak.amount)}
+              </Text>
+            </View>
+            <Text style={railItemNote}>
+              {leak.kind === 'off-budget-transfer'
+                ? t(
+                    '{{date}} · moved out of the budget, so no envelope paid for it',
+                    {
+                      date: monthUtils.format(leak.date, 'd MMM', locale),
+                    },
+                  )
+                : t(
+                    '{{date}} · {{account}} · no category, so no envelope paid for it',
+                    {
+                      date: monthUtils.format(leak.date, 'd MMM', locale),
+                      account: leak.accountName,
+                    },
+                  )}
+            </Text>
+          </PrivacyFilter>
+        </RailItem>
+      ))}
+      {hidden > 0 ? (
+        <RailEmpty>{t('and {{count}} more', { count: hidden })}</RailEmpty>
+      ) : null}
+    </RailCard>
+  );
+}
+
 /**
  * The column beside the envelopes. Where the window is too narrow for a column,
  * `inline` sets the two cards side by side under the month's bar instead.
@@ -932,6 +1219,9 @@ export function BudgetRail({
         <View style={{ flex: '1 1 300px', minWidth: 0 }}>
           <DueBeforePaydayCard />
         </View>
+        <View style={{ flex: '1 1 300px', minWidth: 0 }}>
+          <BankAgainstBudgetCard month={month} />
+        </View>
       </View>
     );
   }
@@ -939,6 +1229,7 @@ export function BudgetRail({
     <View style={{ gap: 16 }}>
       <NeedsDecisionCard month={month} />
       <DueBeforePaydayCard />
+      <BankAgainstBudgetCard month={month} />
     </View>
   );
 }

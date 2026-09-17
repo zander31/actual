@@ -854,3 +854,65 @@ export function SectionHeader({
 export const instrumentPage = {
   padding: '26px 24px 60px',
 };
+
+/**
+ * A standing note about the data itself, set above the figures it qualifies.
+ * Used where a surface would otherwise state a confident number it cannot
+ * actually support — an empty projection reads as calm, not as missing.
+ */
+export function NoticeBar({
+  tone = 'warning',
+  title,
+  detail,
+  action,
+}: {
+  tone?: 'warning' | 'negative';
+  title: ReactNode;
+  detail?: ReactNode;
+  action?: ReactNode;
+}) {
+  const ink = tone === 'negative' ? theme.errorText : theme.warningText;
+  const edge = tone === 'negative' ? theme.errorBorder : theme.warningBorder;
+  return (
+    <View
+      role="status"
+      style={{
+        marginTop: 22,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 16,
+        padding: '15px 18px',
+        borderRadius: 14,
+        flexShrink: 0,
+        flexWrap: 'wrap',
+        backgroundColor: wash(edge, 16, theme.pageBackground),
+      }}
+    >
+      <View style={{ flex: 1, minWidth: 220, gap: 2 }}>
+        <Text
+          style={{
+            fontSize: 15,
+            fontWeight: 600,
+            letterSpacing: '-0.014em',
+            color: ink,
+          }}
+        >
+          {title}
+        </Text>
+        {detail ? (
+          <Text
+            style={{
+              fontSize: 13,
+              fontWeight: 500,
+              lineHeight: 1.45,
+              color: ink,
+            }}
+          >
+            {detail}
+          </Text>
+        ) : null}
+      </View>
+      {action}
+    </View>
+  );
+}

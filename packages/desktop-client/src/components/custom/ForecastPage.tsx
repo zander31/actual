@@ -1,6 +1,7 @@
-// Fork addition: cash curve = upstream schedules forecast, overlaid with rolling
-// 3-month variable-spend rates (non-scheduled outflows) as best / expected / worst bands,
-// plus projected month-end balances across the chosen horizon.
+// Fork addition: cash curve = upstream schedules forecast, overlaid with the
+// rolling 3-month rate of everything the schedules do not cover — net, both
+// signs — as best / expected / worst bands, plus projected month-end balances
+// across the chosen horizon.
 //
 // The page has one job: say whether the money runs out and when. The figure
 // leads (and follows the pointer along the curve), the curve changes colour at
@@ -9,6 +10,7 @@ import { useEffect, useId, useMemo, useState } from 'react';
 import type { KeyboardEvent, MouseEvent } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 
+import { Button } from '@actual-app/components/button';
 import { useResponsive } from '@actual-app/components/hooks/useResponsive';
 import { Select } from '@actual-app/components/select';
 import { styles } from '@actual-app/components/styles';
@@ -23,16 +25,19 @@ import type { ForecastDataPoint } from '@actual-app/core/types/models/forecast';
 import { Page } from '#components/Page';
 import { useAccounts } from '#hooks/useAccounts';
 import { useFormat } from '#hooks/useFormat';
+import { useNavigate } from '#hooks/useNavigate';
 import { aqlQuery } from '#queries/aqlQuery';
 
 import {
   combineByDate,
+  hasScheduledIncome,
+  MIN_SAMPLE_MONTHS,
   monthEnds,
-  monthlyTotals,
+  monthlyNet,
+  netFlowRates,
   projectBands,
-  variableSpendRates,
 } from './forecastMath';
-import type { BandPoint, SpendRates } from './forecastMath';
+import type { BandPoint, NetRates } from './forecastMath';
 import {
   chip,
   columnLabel,
@@ -40,6 +45,7 @@ import {
   Direction,
   HeroNumber,
   LegendRow,
+  NoticeBar,
   PillTabs,
   SectionHeader,
   sectionLabel,
@@ -64,6 +70,7 @@ export function ForecastPage() {
   const { t } = useTranslation();
   const { isNarrowWidth } = useResponsive();
   const format = useFormat();
+  const navigate = useNavigate();
   const { data: accounts = [] } = useAccounts();
   const onBudget = useMemo(
     () => accounts.filter(a => !a.closed && !a.offbudget),
@@ -74,6 +81,7 @@ export function ForecastPage() {
   const [horizon, setHorizon] = useState<Horizon>('90D');
   const [points, setPoints] = useState<ForecastDataPoint[]>([]);
   const [history, setHistory] = useState<number[]>([]);
+  const [sampleMonths, setSampleMonths] = useState<string[]>([]);
   const [scrub, setScrub] = useState<number | null>(null);
   const days = HORIZON_DAYS[horizon];
 
@@ -115,12 +123,18 @@ export function ForecastPage() {
   useEffect(() => {
     if (!accountIds.length) return;
     const today = monthUtils.currentDay();
-    const thisMonthStart = monthUtils.firstDayOfMonth(today);
-    const historyStart = monthUtils.firstDayOfMonth(
-      monthUtils.subMonths(today, HISTORY_MONTHS),
+    const thisMonth = monthUtils.currentMonth();
+    const months = Array.from({ length: HISTORY_MONTHS }, (_, i) =>
+      monthUtils.subMonths(thisMonth, HISTORY_MONTHS - i),
     );
+    const thisMonthStart = monthUtils.firstDayOfMonth(today);
+    const historyStart = monthUtils.firstDayOfMonth(months[0]);
     let cancelled = false;
-    // variable spend = outflows not produced by a schedule, last 3 complete months, same accounts
+    // Everything the schedules do not already project, over the last complete
+    // months, on the same accounts — inflows included. Taking only the
+    // outflows made this subtract a household's whole cost of living while
+    // adding none of its earnings, so any file whose pay is not a schedule
+    // projected straight through zero however much it actually took in.
     void aqlQuery(
       q('transactions')
         .filter({
@@ -128,7 +142,6 @@ export function ForecastPage() {
             { date: { $gte: historyStart } },
             { date: { $lt: thisMonthStart } },
           ],
-          amount: { $lt: 0 },
           schedule: null,
           transfer_id: null,
           is_parent: false,
@@ -137,7 +150,10 @@ export function ForecastPage() {
         .select(['date', 'amount']),
     ).then(({ data }) => {
       if (!cancelled) {
-        setHistory(monthlyTotals(data as { date: string; amount: number }[]));
+        setSampleMonths(months);
+        setHistory(
+          monthlyNet(data as { date: string; amount: number }[], months),
+        );
       }
     });
     return () => {
@@ -145,13 +161,15 @@ export function ForecastPage() {
     };
   }, [accountIds]);
 
-  const rates: SpendRates = useMemo(
-    () => variableSpendRates(history),
+  const rates: NetRates | null = useMemo(
+    () => netFlowRates(history),
     [history],
   );
-  const bands = useMemo(
-    () => projectBands(combineByDate(points), rates),
-    [points, rates],
+  const combined = useMemo(() => combineByDate(points), [points]);
+  const bands = useMemo(() => projectBands(combined, rates), [combined, rates]);
+  const noIncomeSchedule = useMemo(
+    () => points.length > 0 && !hasScheduledIncome(combined),
+    [points.length, combined],
   );
   // only whole months: a month the horizon cuts off part-way hasn't landed
   const ends = useMemo(
@@ -197,6 +215,10 @@ export function ForecastPage() {
 
   const heroInk =
     shown && shown.expected < 0 ? theme.errorText : theme.pageText;
+
+  /** A signed per-day rate, read as money either way. */
+  const perDay = (cents: number) =>
+    format(Math.round(cents), 'financial-no-decimals');
 
   return (
     <Page
@@ -337,6 +359,33 @@ export function ForecastPage() {
           style={{ marginTop: 10 }}
         />
 
+        {noIncomeSchedule && (
+          <NoticeBar
+            title={
+              <Trans>
+                No income is scheduled in this horizon, so this curve is bills
+                only
+              </Trans>
+            }
+            detail={
+              <Trans>
+                A forecast built from outgoings alone can only ever run out. Add
+                your pay as a schedule and the line will show what actually
+                arrives.
+              </Trans>
+            }
+            action={
+              <Button
+                variant="primary"
+                onPress={() => navigate('/schedules')}
+                style={{ height: 32, padding: '0 14px', fontSize: 13 }}
+              >
+                <Trans>Set up schedules</Trans>
+              </Button>
+            }
+          />
+        )}
+
         {last && (
           <View
             style={{
@@ -393,27 +442,33 @@ export function ForecastPage() {
               fontSize: 13,
             }}
           >
-            <Trans>
-              The dashed line is your schedules alone, from the same engine as
-              the Balance Forecast report. The band subtracts your best, average
-              and worst month of non-scheduled spending over the last{' '}
-              {{ n: history.length }} months, spread evenly per day — currently{' '}
-              {{
-                best: format(Math.round(rates.best), 'financial-no-decimals'),
-              }}
-              ,{' '}
-              {{
-                expected: format(
-                  Math.round(rates.expected),
-                  'financial-no-decimals',
-                ),
-              }}{' '}
-              and{' '}
-              {{
-                worst: format(Math.round(rates.worst), 'financial-no-decimals'),
-              }}{' '}
-              a day.
-            </Trans>
+            {rates ? (
+              <Trans>
+                The dashed line is your schedules alone, from the same engine as
+                the Balance Forecast report. The band adds everything the
+                schedules do not cover — money in as well as out — taking your
+                best, average and worst of the {{ n: history.length }} complete
+                months to{' '}
+                {{
+                  sampleEnd: monthUtils.format(
+                    sampleMonths[history.length - 1] ?? '',
+                    'MMMM',
+                  ),
+                }}
+                , spread evenly per day: {{ best: perDay(rates.best) }},{' '}
+                {{ expected: perDay(rates.expected) }} and{' '}
+                {{ worst: perDay(rates.worst) }} a day.
+              </Trans>
+            ) : (
+              <Trans>
+                The dashed line is your schedules alone, from the same engine as
+                the Balance Forecast report. There are not yet{' '}
+                {{ need: MIN_SAMPLE_MONTHS }} complete months of history outside
+                those schedules, so no band is drawn — one month would make
+                best, expected and worst the same figure and read as certainty
+                this file cannot support.
+              </Trans>
+            )}
           </Text>
           {lastDate && (
             <Text style={{ color: theme.pageTextSubdued, fontSize: 12 }}>
