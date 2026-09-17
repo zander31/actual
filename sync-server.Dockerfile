@@ -17,6 +17,7 @@ COPY packages/eslint-plugin-actual/package.json packages/eslint-plugin-actual/pa
 COPY packages/loot-core/package.json packages/loot-core/package.json
 COPY packages/sync-server/package.json packages/sync-server/package.json
 COPY packages/plugins-service/package.json packages/plugins-service/package.json
+COPY packages/vite-plugin-peggy/package.json packages/vite-plugin-peggy/package.json
 
 COPY ./bin/package-browser ./bin/package-browser
 
@@ -27,6 +28,9 @@ FROM deps AS builder
 WORKDIR /app
 
 COPY packages/ ./packages/
+# ponytail: git tracks both src/Themes/ and src/themes/; a macOS (case-insensitive) checkout merges them into
+# whichever name came first, so restore the lowercase path the CSS imports use. No-op on Linux checkouts.
+RUN [ -d packages/component-library/src/themes ] || mv packages/component-library/src/Themes packages/component-library/src/themes
 
 # Increase memory limit for the build process to 8GB
 ENV NODE_OPTIONS=--max_old_space_size=8192
