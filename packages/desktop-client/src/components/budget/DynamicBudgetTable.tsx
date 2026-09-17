@@ -8,6 +8,14 @@ import { AutoSizer } from 'react-virtualized-auto-sizer';
 import { View } from '@actual-app/components/view';
 import * as monthUtils from '@actual-app/core/shared/months';
 
+import {
+  BUDGET_RAIL_GAP,
+  BUDGET_RAIL_WIDTH,
+  BudgetHero,
+  BudgetRail,
+  EnvelopesSectionHeader,
+  MonthStandsCard,
+} from '#components/custom/BudgetInstrument';
 import { FeatureErrorFallback } from '#components/FeatureErrorFallback';
 import { useFeatureFlag } from '#hooks/useFeatureFlag';
 import { useGlobalPref } from '#hooks/useGlobalPref';
@@ -15,6 +23,14 @@ import { useGlobalPref } from '#hooks/useGlobalPref';
 import { useBudgetMonthCount } from './BudgetMonthCountContext';
 import { BudgetPageHeader } from './BudgetPageHeader';
 import { BudgetTable } from './BudgetTable';
+import { MonthPicker } from './MonthPicker';
+import { getCategoryColumnWidth, getMonthColumnWidth } from './util';
+
+// The envelope budget is laid out as an instrument: the rail sits beside the
+// envelopes once there is room for both, and a single month widens past the
+// upstream column so its history, bar and status have space to be read.
+const RAIL_MIN_WIDTH = 1180;
+const INSTRUMENT_SINGLE_MONTH_MAX_WIDTH = 1120;
 
 function getNumPossibleMonths(width: number, categoryWidth: number) {
   const estimatedTableWidth = width - categoryWidth;
@@ -56,12 +72,29 @@ const DynamicBudgetTable = ({
   const isGoalTemplatesEnabled = useFeatureFlag('goalTemplatesEnabled');
   const categoryExpandedState = categoryExpandedStatePref ?? 0;
 
-  const numPossible = getNumPossibleMonths(
-    width,
-    200 + 100 * categoryExpandedState,
-  );
+  const isInstrument = type === 'envelope';
+  const showRail = isInstrument && width >= RAIL_MIN_WIDTH;
+  const tableWidth = showRail
+    ? width - BUDGET_RAIL_WIDTH - BUDGET_RAIL_GAP
+    : width;
+
+  const categoryWidth = getCategoryColumnWidth(categoryExpandedState);
+  const numPossible = getNumPossibleMonths(tableWidth, categoryWidth);
   const numMonths = Math.min(numPossible, maxMonths);
-  const maxWidth = 200 + 100 * categoryExpandedState + 500 * numMonths;
+  const maxWidth =
+    isInstrument && numMonths === 1
+      ? Math.max(
+          INSTRUMENT_SINGLE_MONTH_MAX_WIDTH,
+          categoryWidth + getMonthColumnWidth(1),
+        )
+      : categoryWidth + getMonthColumnWidth(numMonths) * numMonths;
+
+  // The hero, bar and rail speak for one month: today's when it is on screen,
+  // otherwise the first month shown.
+  const lastShownMonth = monthUtils.addMonths(startMonth, numMonths - 1);
+  const today = monthUtils.currentMonth();
+  const focusMonth =
+    today >= startMonth && today <= lastShownMonth ? today : startMonth;
 
   useEffect(() => {
     setDisplayMax(numPossible);
@@ -147,24 +180,74 @@ const DynamicBudgetTable = ({
         opacity: width <= 0 || height <= 0 ? 0 : 1,
       }}
     >
-      <View style={{ width: '100%', maxWidth }}>
-        <ErrorBoundary FallbackComponent={FeatureErrorFallback}>
-          <BudgetPageHeader
-            startMonth={prewarmStartMonth}
-            numMonths={numMonths}
-            monthBounds={monthBounds}
-            onMonthSelect={_onMonthSelect}
-          />
-          <BudgetTable
-            type={type}
-            prewarmStartMonth={prewarmStartMonth}
-            startMonth={startMonth}
-            numMonths={numMonths}
-            monthBounds={monthBounds}
-            onBudgetAction={onBudgetAction}
-            {...props}
-          />
-        </ErrorBoundary>
+      <View
+        style={{
+          flexDirection: 'row',
+          alignItems: 'stretch',
+          gap: BUDGET_RAIL_GAP,
+          width: '100%',
+          maxWidth: showRail
+            ? maxWidth + BUDGET_RAIL_WIDTH + BUDGET_RAIL_GAP
+            : maxWidth,
+          flex: 1,
+          minHeight: 0,
+        }}
+      >
+        <View style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
+          <ErrorBoundary FallbackComponent={FeatureErrorFallback}>
+            {!isInstrument && (
+              <BudgetPageHeader
+                startMonth={prewarmStartMonth}
+                numMonths={numMonths}
+                monthBounds={monthBounds}
+                onMonthSelect={_onMonthSelect}
+              />
+            )}
+            <BudgetTable
+              type={type}
+              prewarmStartMonth={prewarmStartMonth}
+              startMonth={startMonth}
+              numMonths={numMonths}
+              monthBounds={monthBounds}
+              onBudgetAction={onBudgetAction}
+              header={
+                isInstrument ? (
+                  <View style={{ paddingTop: 26, flexShrink: 0 }}>
+                    <BudgetHero month={focusMonth} />
+                    <MonthPicker
+                      startMonth={prewarmStartMonth}
+                      numDisplayed={numMonths}
+                      monthBounds={monthBounds}
+                      variant="strip"
+                      style={{ marginTop: 22 }}
+                      onSelect={month => _onMonthSelect(month)}
+                    />
+                    <MonthStandsCard month={focusMonth} />
+                    {!showRail && <BudgetRail month={focusMonth} inline />}
+                    <EnvelopesSectionHeader showHistory={numMonths === 1} />
+                  </View>
+                ) : undefined
+              }
+              {...props}
+            />
+          </ErrorBoundary>
+        </View>
+        {showRail && (
+          <View
+            style={{
+              width: BUDGET_RAIL_WIDTH,
+              flexShrink: 0,
+              minHeight: 0,
+              overflowY: 'auto',
+              paddingTop: 26,
+              paddingBottom: 16,
+            }}
+          >
+            <ErrorBoundary FallbackComponent={FeatureErrorFallback}>
+              <BudgetRail month={focusMonth} />
+            </ErrorBoundary>
+          </View>
+        )}
       </View>
     </View>
   );

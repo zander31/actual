@@ -69,12 +69,12 @@ export function ReportCard({
     <View
       ref={ref}
       style={{
-        backgroundColor: theme.tableBackground,
-        borderBottomLeftRadius: 2,
-        borderBottomRightRadius: 2,
+        backgroundColor: theme.cardBackground,
+        borderRadius: 16,
         width: '100%',
         height: '100%',
-        boxShadow: '0 2px 6px rgba(0, 0, 0, .15)',
+        // Fork: a persistent surface takes a hairline, never a cast shadow.
+        boxShadow: `inset 0 0 0 1px ${theme.tableBorder}`,
         transition: 'box-shadow .25s',
         ...(isEditing
           ? {
@@ -91,7 +91,9 @@ export function ReportCard({
               },
             }),
         ':hover': {
-          ...(to ? { boxShadow: '0 4px 6px rgba(0, 0, 0, .15)' } : null),
+          ...(to
+            ? { boxShadow: `inset 0 0 0 1px ${theme.tableBorderHover}` }
+            : null),
           ...(isEditing ? { cursor: 'move', filter: 'grayscale(0)' } : null),
         },
         ...(to ? null : containerProps),

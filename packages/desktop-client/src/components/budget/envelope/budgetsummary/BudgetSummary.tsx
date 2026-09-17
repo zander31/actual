@@ -24,6 +24,101 @@ import { BudgetMonthMenu } from './BudgetMonthMenu';
 import { ToBudget } from './ToBudget';
 import { TotalsList } from './TotalsList';
 
+// The card's content edge. Set so the label above the tiles lands on the same
+// vertical as the category names in the table below it — the surface reads as
+// one column of content, not a card parked on top of a table.
+const CARD_PADDING = 18;
+
+type EnvelopeMonthMenuProps = {
+  month: string;
+  onClose: () => void;
+};
+
+/**
+ * The month's bulk actions (copy last month, averages, templates, clean-up).
+ * Shared by the per-month summary card and the budget page's hero, so both
+ * menus stay identical.
+ */
+export function EnvelopeMonthMenu({ month, onClose }: EnvelopeMonthMenuProps) {
+  const locale = useLocale();
+  const { t } = useTranslation();
+  const { onBudgetAction } = useEnvelopeBudget();
+  const { showUndoNotification } = useUndo();
+  const displayMonth = monthUtils.format(month, "MMMM ''yy", locale);
+  const onMenuClose = onClose;
+
+  return (
+    <BudgetMonthMenu
+      onCopyLastMonthBudget={() => {
+        onBudgetAction(month, 'copy-last');
+        onMenuClose();
+        showUndoNotification({
+          message: t(
+            "{{displayMonth}} budgets have all been set to last month's budgeted amounts.",
+            { displayMonth },
+          ),
+        });
+      }}
+      onSetBudgetsToZero={() => {
+        onBudgetAction(month, 'set-zero');
+        onMenuClose();
+        showUndoNotification({
+          message: t('{{displayMonth}} budgets have all been set to zero.', {
+            displayMonth,
+          }),
+        });
+      }}
+      onSetMonthsAverage={numberOfMonths => {
+        onBudgetAction(month, `set-${numberOfMonths}-avg`);
+        onMenuClose();
+        showUndoNotification({
+          message:
+            numberOfMonths === 12
+              ? t(
+                  `${displayMonth} budgets have all been set to yearly average.`,
+                )
+              : t(
+                  `${displayMonth} budgets have all been set to ${numberOfMonths} month average.`,
+                ),
+        });
+      }}
+      onCheckTemplates={() => {
+        onBudgetAction(month, 'check-templates');
+        onMenuClose();
+      }}
+      onApplyBudgetTemplates={() => {
+        onBudgetAction(month, 'apply-goal-template');
+        onMenuClose();
+        showUndoNotification({
+          message: t('{{displayMonth}} budget templates have been applied.', {
+            displayMonth,
+          }),
+        });
+      }}
+      onOverwriteWithBudgetTemplates={() => {
+        onBudgetAction(month, 'overwrite-goal-template');
+        onMenuClose();
+        showUndoNotification({
+          message: t(
+            '{{displayMonth}} budget templates have been overwritten.',
+            { displayMonth },
+          ),
+        });
+      }}
+      onEndOfMonthCleanup={() => {
+        onBudgetAction(month, 'cleanup-goal-template');
+        onMenuClose();
+        showUndoNotification({
+          message: t(
+            '{{displayMonth}} end-of-month cleanup templates have been applied.',
+            { displayMonth },
+          ),
+        });
+      }}
+    />
+  );
+}
+
 type BudgetSummaryProps = {
   month: string;
 };
@@ -38,7 +133,6 @@ export const BudgetSummary = memo(({ month }: BudgetSummaryProps) => {
 
   const [menuOpen, setMenuOpen] = useState(false);
   const triggerRef = useRef(null);
-  const { showUndoNotification } = useUndo();
 
   function onMenuOpen() {
     setMenuOpen(true);
@@ -58,7 +152,6 @@ export const BudgetSummary = memo(({ month }: BudgetSummaryProps) => {
     ? SvgArrowButtonDown1
     : SvgArrowButtonUp1;
 
-  const displayMonth = monthUtils.format(month, "MMMM ''yy", locale);
   const { t } = useTranslation();
 
   return (
@@ -70,8 +163,9 @@ export const BudgetSummary = memo(({ month }: BudgetSummaryProps) => {
           month === currentMonth
             ? theme.budgetCurrentMonth
             : theme.budgetOtherMonth,
-        boxShadow: styles.cardShadow,
-        borderRadius: 6,
+        // one edge signal: a hairline, not a cast shadow on a resting surface
+        boxShadow: `inset 0 0 0 1px ${theme.tableBorder}`,
+        borderRadius: 16,
         marginLeft: 0,
         marginRight: 0,
         marginTop: 5,
@@ -91,15 +185,35 @@ export const BudgetSummary = memo(({ month }: BudgetSummaryProps) => {
       <SheetNameProvider name={monthUtils.sheetForMonth(month)}>
         <View
           style={{
-            padding: '0 13px',
-            ...(collapsed ? { margin: '10px 0' } : { marginTop: 16 }),
+            padding: `0 ${CARD_PADDING}px`,
+            // the month names the card; its controls sit together at the far
+            // end of the same line, out of the heading's way
+            flexDirection: 'row',
+            alignItems: 'center',
+            ...(collapsed ? { margin: '12px 0' } : { marginTop: 20 }),
           }}
         >
+          <div
+            className={css([
+              {
+                textAlign: 'left',
+                flexGrow: 1,
+                ...styles.displayText,
+                fontSize: 21,
+                fontWeight: 600,
+                textDecorationSkip: 'ink',
+              },
+              currentMonth === month && { color: theme.pageText },
+            ])}
+          >
+            {monthUtils.format(month, 'MMMM', locale)}
+          </div>
+
           <View
             style={{
-              position: 'absolute',
-              left: 10,
-              top: 0,
+              flexDirection: 'row',
+              alignItems: 'center',
+              marginRight: -8,
             }}
           >
             <Button
@@ -119,32 +233,6 @@ export const BudgetSummary = memo(({ month }: BudgetSummaryProps) => {
                 style={{ color: theme.pageTextLight, margin: 1 }}
               />
             </Button>
-          </View>
-
-          <div
-            className={css([
-              {
-                textAlign: 'center',
-                marginTop: 3,
-                fontSize: 18,
-                fontWeight: 500,
-                textDecorationSkip: 'ink',
-              },
-              currentMonth === month && { fontWeight: 'bold' },
-            ])}
-          >
-            {monthUtils.format(month, 'MMMM', locale)}
-          </div>
-
-          <View
-            style={{
-              position: 'absolute',
-              right: 10,
-              top: 0,
-              flexDirection: 'row',
-              alignItems: 'center',
-            }}
-          >
             <View>
               <NotesButton
                 id={`budget-${month}`}
@@ -173,76 +261,7 @@ export const BudgetSummary = memo(({ month }: BudgetSummaryProps) => {
                 isOpen={menuOpen}
                 onOpenChange={onMenuClose}
               >
-                <BudgetMonthMenu
-                  onCopyLastMonthBudget={() => {
-                    onBudgetAction(month, 'copy-last');
-                    onMenuClose();
-                    showUndoNotification({
-                      message: t(
-                        "{{displayMonth}} budgets have all been set to last month's budgeted amounts.",
-                        { displayMonth },
-                      ),
-                    });
-                  }}
-                  onSetBudgetsToZero={() => {
-                    onBudgetAction(month, 'set-zero');
-                    onMenuClose();
-                    showUndoNotification({
-                      message: t(
-                        '{{displayMonth}} budgets have all been set to zero.',
-                        { displayMonth },
-                      ),
-                    });
-                  }}
-                  onSetMonthsAverage={numberOfMonths => {
-                    onBudgetAction(month, `set-${numberOfMonths}-avg`);
-                    onMenuClose();
-                    showUndoNotification({
-                      message:
-                        numberOfMonths === 12
-                          ? t(
-                              `${displayMonth} budgets have all been set to yearly average.`,
-                            )
-                          : t(
-                              `${displayMonth} budgets have all been set to ${numberOfMonths} month average.`,
-                            ),
-                    });
-                  }}
-                  onCheckTemplates={() => {
-                    onBudgetAction(month, 'check-templates');
-                    onMenuClose();
-                  }}
-                  onApplyBudgetTemplates={() => {
-                    onBudgetAction(month, 'apply-goal-template');
-                    onMenuClose();
-                    showUndoNotification({
-                      message: t(
-                        '{{displayMonth}} budget templates have been applied.',
-                        { displayMonth },
-                      ),
-                    });
-                  }}
-                  onOverwriteWithBudgetTemplates={() => {
-                    onBudgetAction(month, 'overwrite-goal-template');
-                    onMenuClose();
-                    showUndoNotification({
-                      message: t(
-                        '{{displayMonth}} budget templates have been overwritten.',
-                        { displayMonth },
-                      ),
-                    });
-                  }}
-                  onEndOfMonthCleanup={() => {
-                    onBudgetAction(month, 'cleanup-goal-template');
-                    onMenuClose();
-                    showUndoNotification({
-                      message: t(
-                        '{{displayMonth}} end-of-month cleanup templates have been applied.',
-                        { displayMonth },
-                      ),
-                    });
-                  }}
-                />
+                <EnvelopeMonthMenu month={month} onClose={onMenuClose} />
               </Popover>
             </View>
           </View>
@@ -251,8 +270,10 @@ export const BudgetSummary = memo(({ month }: BudgetSummaryProps) => {
         {collapsed ? (
           <View
             style={{
-              alignItems: 'center',
-              padding: '10px 20px',
+              // the collapsed answer keeps the card's left edge; centring it
+              // left the figure floating away from everything above and below
+              alignItems: 'flex-start',
+              padding: `12px ${CARD_PADDING}px 16px`,
               justifyContent: 'space-between',
               backgroundColor: theme.budgetCurrentMonth,
               borderTop: '1px solid ' + theme.tableBorder,
@@ -269,16 +290,11 @@ export const BudgetSummary = memo(({ month }: BudgetSummaryProps) => {
           <>
             <TotalsList
               prevMonthName={prevMonthName}
-              style={{
-                padding: '5px 0',
-                marginTop: 17,
-                backgroundColor: theme.budgetHeaderCurrentMonth,
-                borderTopWidth: 1,
-                borderBottomWidth: 1,
-                borderColor: theme.tableBorder,
-              }}
+              style={{ padding: `0 ${CARD_PADDING}px`, marginTop: 14 }}
             />
-            <View style={{ margin: '23px 0' }}>
+            <View
+              style={{ margin: '26px 0 24px', padding: `0 ${CARD_PADDING}px` }}
+            >
               <ToBudget
                 prevMonthName={prevMonthName}
                 month={month}

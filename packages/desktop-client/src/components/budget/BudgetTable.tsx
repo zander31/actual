@@ -1,5 +1,5 @@
 import React, { useLayoutEffect, useMemo, useRef, useState } from 'react';
-import type { KeyboardEvent } from 'react';
+import type { KeyboardEvent, ReactNode } from 'react';
 
 import { styles } from '@actual-app/components/styles';
 import { theme } from '@actual-app/components/theme';
@@ -24,6 +24,7 @@ import type { MonthBounds } from './MonthsContext';
 import {
   findSortDown,
   findSortUp,
+  getCategoryColumnWidth,
   getScrollbarWidth,
   separateGroups,
 } from './util';
@@ -56,6 +57,12 @@ type BudgetTableProps = {
   }) => void;
   onShowActivity: (id: CategoryEntity['id'], month?: string) => void;
   onBudgetAction: (month: string, type: string, args: unknown) => void;
+  /**
+   * Content that leads the surface and scrolls away with the rows (the fork's
+   * budget instrument). When given, the column header sticks to the top of
+   * the scroll instead of sitting above it.
+   */
+  header?: ReactNode;
 };
 
 export function BudgetTable(props: BudgetTableProps) {
@@ -75,6 +82,7 @@ export function BudgetTable(props: BudgetTableProps) {
     onReorderGroup,
     onShowActivity,
     onBudgetAction,
+    header,
   } = props;
 
   const { data: { grouped: categoryGroups } = { grouped: [] } } =
@@ -245,6 +253,52 @@ export function BudgetTable(props: BudgetTableProps) {
 
   const schedulesQuery = useMemo(() => q('schedules').select('*'), []);
 
+  const totals = (sticky: boolean) => (
+    <BudgetTotals
+      sticky={sticky}
+      toggleHiddenCategories={toggleHiddenCategories}
+      expandAllCategories={expandAllCategories}
+      collapseAllCategories={collapseAllCategories}
+    />
+  );
+
+  // One month on the instrument is summarised by its hero; more than one keeps
+  // a summary over each month column.
+  const summaries =
+    header && numMonths === 1 ? null : (
+      <View
+        style={{
+          flexDirection: 'row',
+          overflow: 'hidden',
+          flexShrink: 0,
+          // This is necessary to align with the table because the
+          // table has this padding to allow the shadow to show. Inside the
+          // scroll the rows already share its edges.
+          ...(header
+            ? { marginTop: 16 }
+            : { paddingLeft: 5, paddingRight: 5 + getScrollbarWidth() }),
+        }}
+      >
+        {/* Over two or more months the summary belongs above its own column, so
+            the category column is held open beside it. On a single month there
+            is no column to sit over — the summary is the surface's header, and
+            it takes the full width and the table's left edge. */}
+        {numMonths > 1 && (
+          <View
+            style={{ width: getCategoryColumnWidth(categoryExpandedState) }}
+          />
+        )}
+        <MonthsProvider
+          startMonth={prewarmStartMonth}
+          numMonths={numMonths}
+          monthBounds={monthBounds}
+          type={type}
+        >
+          <BudgetSummaries />
+        </MonthsProvider>
+      </View>
+    );
+
   return (
     <View
       data-testid="budget-table"
@@ -261,27 +315,7 @@ export function BudgetTable(props: BudgetTableProps) {
         }),
       }}
     >
-      <View
-        style={{
-          flexDirection: 'row',
-          overflow: 'hidden',
-          flexShrink: 0,
-          // This is necessary to align with the table because the
-          // table has this padding to allow the shadow to show
-          paddingLeft: 5,
-          paddingRight: 5 + getScrollbarWidth(),
-        }}
-      >
-        <View style={{ width: 200 + 100 * categoryExpandedState }} />
-        <MonthsProvider
-          startMonth={prewarmStartMonth}
-          numMonths={numMonths}
-          monthBounds={monthBounds}
-          type={type}
-        >
-          <BudgetSummaries />
-        </MonthsProvider>
-      </View>
+      {!header && summaries}
 
       <MonthsProvider
         startMonth={startMonth}
@@ -289,11 +323,7 @@ export function BudgetTable(props: BudgetTableProps) {
         monthBounds={monthBounds}
         type={type}
       >
-        <BudgetTotals
-          toggleHiddenCategories={toggleHiddenCategories}
-          expandAllCategories={expandAllCategories}
-          collapseAllCategories={collapseAllCategories}
-        />
+        {!header && totals(false)}
         <View
           ref={scrollContainerRef}
           data-testid="budget-table-scroll-container"
@@ -305,6 +335,13 @@ export function BudgetTable(props: BudgetTableProps) {
             paddingRight: 5,
           }}
         >
+          {header && (
+            <>
+              {header}
+              {summaries}
+              {totals(true)}
+            </>
+          )}
           <View
             style={{
               flexShrink: 0,

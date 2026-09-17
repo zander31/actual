@@ -22,6 +22,8 @@ import type {
   MarkdownWidget,
 } from '@actual-app/core/types/models';
 
+import { SectionHeader } from '#components/custom/primitives';
+import { ReportsInstrument } from '#components/custom/ReportsInstrument';
 import { MOBILE_NAV_HEIGHT } from '#components/mobile/MobileNavTabs';
 import { MobilePageHeader, Page } from '#components/Page';
 import { useAccounts } from '#hooks/useAccounts';
@@ -472,6 +474,251 @@ export function Overview({ dashboard }: OverviewProps) {
     return <LoadingIndicator message={t('Loading reports...')} />;
   }
 
+  const addWidgetMenu = (
+    <DialogTrigger>
+      <Button variant="primary" isDisabled={isImporting}>
+        <Trans>Add widget</Trans>
+      </Button>
+
+      <Popover>
+        <Dialog>
+          <Menu
+            slot="close"
+            onMenuSelect={item => {
+              if (item === 'custom-report') {
+                void navigate('/reports/custom');
+                return;
+              }
+
+              function isExistingCustomReport(
+                name: string,
+              ): name is `custom-report-${string}` {
+                return name.startsWith('custom-report-');
+              }
+              if (isExistingCustomReport(item)) {
+                const [, reportId] = item.split('custom-report-');
+                onAddWidget<CustomReportWidget>('custom-report', {
+                  id: reportId,
+                });
+                return;
+              }
+
+              if (item === 'markdown-card') {
+                onAddWidget<MarkdownWidget>(item, {
+                  content: `### ${t('Text Widget')}\n\n${t('Edit this widget to change the **markdown** content.')}`,
+                });
+                return;
+              }
+
+              onAddWidget(item);
+            }}
+            items={[
+              {
+                name: 'cash-flow-card' as const,
+                text: t('Cash flow graph'),
+              },
+              {
+                name: 'net-worth-card' as const,
+                text: t('Net worth graph'),
+              },
+              {
+                name: 'crossover-card' as const,
+                text: t('Crossover point'),
+              },
+              {
+                name: 'age-of-money-card' as const,
+                text: t('Age of Money'),
+              },
+              {
+                name: 'spending-card' as const,
+                text: t('Spending analysis'),
+              },
+              ...(budgetAnalysisReportEnabled
+                ? [
+                    {
+                      name: 'budget-analysis-card' as const,
+                      text: t('Budget analysis'),
+                    },
+                  ]
+                : []),
+              ...(balanceForecastReportEnabled
+                ? [
+                    {
+                      name: 'balance-forecast-card' as const,
+                      text: t('Balance forecast'),
+                    },
+                  ]
+                : []),
+              ...(monteCarloReportEnabled
+                ? [
+                    {
+                      name: 'monte-carlo-card' as const,
+                      text: t('Monte Carlo analysis'),
+                    },
+                  ]
+                : []),
+              {
+                name: 'markdown-card' as const,
+                text: t('Text widget'),
+              },
+              {
+                name: 'summary-card' as const,
+                text: t('Summary card'),
+              },
+              {
+                name: 'calendar-card' as const,
+                text: t('Calendar card'),
+              },
+              ...(formulaMode
+                ? [
+                    {
+                      name: 'formula-card' as const,
+                      text: t('Formula card'),
+                    },
+                  ]
+                : []),
+              ...(sankeyFeatureFlag
+                ? [
+                    {
+                      name: 'sankey-card' as const,
+                      text: t('Sankey card'),
+                    },
+                  ]
+                : []),
+              {
+                name: 'custom-report' as const,
+                text: t('New custom report'),
+              },
+              ...(customReports.length
+                ? ([Menu.line] satisfies Array<typeof Menu.line>)
+                : []),
+              ...customReports.map(report => ({
+                name: `custom-report-${report.id}` as const,
+                text: report.name,
+              })),
+            ]}
+          />
+        </Dialog>
+      </Popover>
+    </DialogTrigger>
+  );
+
+  const dashboardControls = (
+    <View
+      style={{
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        gap: 10,
+        margin: '34px 14px 4px',
+        flexShrink: 0,
+      }}
+    >
+      <DashboardHeader dashboard={dashboard} />
+      <View
+        style={{ flex: 1, height: 1, backgroundColor: theme.tableBorder }}
+      />
+
+      <View
+        style={{
+          flexDirection: 'row',
+          justifyContent: 'space-between',
+          gap: 5,
+          alignItems: 'stretch',
+        }}
+      >
+        {currentBreakpoint === 'desktop' && (
+          <>
+            {/* Dashboard Selector */}
+            <DashboardSelector
+              dashboards={dashboardPages}
+              currentDashboard={dashboard}
+            />
+
+            {/* The Editing Button */}
+            {isEditing ? (
+              <Button
+                isDisabled={isImporting}
+                onPress={() => setIsEditing(false)}
+              >
+                <Trans>Finish editing dashboard</Trans>
+              </Button>
+            ) : (
+              <Button
+                isDisabled={isImporting}
+                onPress={() => setIsEditing(true)}
+              >
+                <Trans>Edit dashboard</Trans>
+              </Button>
+            )}
+
+            {/* The Menu */}
+            <DialogTrigger>
+              <Button variant="bare" aria-label={t('Menu')}>
+                <SvgDotsHorizontalTriple
+                  width={15}
+                  height={15}
+                  style={{ transform: 'rotateZ(90deg)' }}
+                />
+              </Button>
+              <Popover>
+                <Dialog>
+                  <Menu
+                    slot="close"
+                    onMenuSelect={item => {
+                      switch (item) {
+                        case 'reset':
+                          void onResetDashboard();
+                          break;
+                        case 'export':
+                          onExport();
+                          break;
+                        case 'import':
+                          void onImport();
+                          break;
+                        case 'delete':
+                          void onDeleteDashboard(dashboard.id);
+                          break;
+                        default:
+                          throw new Error(
+                            `Unrecognized menu option: ${String(item)}`,
+                          );
+                      }
+                    }}
+                    items={[
+                      {
+                        name: 'reset',
+                        text: t('Reset to default'),
+                        disabled: isImporting,
+                      },
+                      Menu.line,
+                      {
+                        name: 'import',
+                        text: t('Import'),
+                        disabled: isImporting,
+                      },
+                      {
+                        name: 'export',
+                        text: t('Export'),
+                        disabled: isImporting,
+                      },
+                      Menu.line,
+                      {
+                        name: 'delete',
+                        text: t('Delete dashboard'),
+                        disabled: isImporting || dashboardPages.length <= 1,
+                      },
+                    ]}
+                  />
+                </Dialog>
+              </Popover>
+            </DialogTrigger>
+          </>
+        )}
+      </View>
+    </View>
+  );
+
   return (
     <Page
       header={
@@ -503,257 +750,26 @@ export function Overview({ dashboard }: OverviewProps) {
               />
             </View>
           </View>
-        ) : (
-          <View
-            style={{
-              flexDirection: 'row',
-              justifyContent: 'space-between',
-              marginRight: 15,
-              alignItems: 'center',
-            }}
-          >
-            <DashboardHeader dashboard={dashboard} />
-
-            <View
-              style={{
-                flexDirection: 'row',
-                justifyContent: 'space-between',
-                gap: 5,
-                alignItems: 'stretch',
-              }}
-            >
-              {currentBreakpoint === 'desktop' && (
-                <>
-                  {/* Dashboard Selector */}
-                  <DashboardSelector
-                    dashboards={dashboardPages}
-                    currentDashboard={dashboard}
-                  />
-
-                  <View
-                    style={{
-                      height: 'auto',
-                      borderLeft: `1.5px solid ${theme.pillBorderDark}`,
-                      borderRadius: 0.75,
-                      marginLeft: 7,
-                      marginRight: 7,
-                    }}
-                  />
-
-                  <DialogTrigger>
-                    <Button variant="primary" isDisabled={isImporting}>
-                      <Trans>Add new widget</Trans>
-                    </Button>
-
-                    <Popover>
-                      <Dialog>
-                        <Menu
-                          slot="close"
-                          onMenuSelect={item => {
-                            if (item === 'custom-report') {
-                              void navigate('/reports/custom');
-                              return;
-                            }
-
-                            function isExistingCustomReport(
-                              name: string,
-                            ): name is `custom-report-${string}` {
-                              return name.startsWith('custom-report-');
-                            }
-                            if (isExistingCustomReport(item)) {
-                              const [, reportId] = item.split('custom-report-');
-                              onAddWidget<CustomReportWidget>('custom-report', {
-                                id: reportId,
-                              });
-                              return;
-                            }
-
-                            if (item === 'markdown-card') {
-                              onAddWidget<MarkdownWidget>(item, {
-                                content: `### ${t('Text Widget')}\n\n${t('Edit this widget to change the **markdown** content.')}`,
-                              });
-                              return;
-                            }
-
-                            onAddWidget(item);
-                          }}
-                          items={[
-                            {
-                              name: 'cash-flow-card' as const,
-                              text: t('Cash flow graph'),
-                            },
-                            {
-                              name: 'net-worth-card' as const,
-                              text: t('Net worth graph'),
-                            },
-                            {
-                              name: 'crossover-card' as const,
-                              text: t('Crossover point'),
-                            },
-                            {
-                              name: 'age-of-money-card' as const,
-                              text: t('Age of Money'),
-                            },
-                            {
-                              name: 'spending-card' as const,
-                              text: t('Spending analysis'),
-                            },
-                            ...(budgetAnalysisReportEnabled
-                              ? [
-                                  {
-                                    name: 'budget-analysis-card' as const,
-                                    text: t('Budget analysis'),
-                                  },
-                                ]
-                              : []),
-                            ...(balanceForecastReportEnabled
-                              ? [
-                                  {
-                                    name: 'balance-forecast-card' as const,
-                                    text: t('Balance forecast'),
-                                  },
-                                ]
-                              : []),
-                            ...(monteCarloReportEnabled
-                              ? [
-                                  {
-                                    name: 'monte-carlo-card' as const,
-                                    text: t('Monte Carlo analysis'),
-                                  },
-                                ]
-                              : []),
-                            {
-                              name: 'markdown-card' as const,
-                              text: t('Text widget'),
-                            },
-                            {
-                              name: 'summary-card' as const,
-                              text: t('Summary card'),
-                            },
-                            {
-                              name: 'calendar-card' as const,
-                              text: t('Calendar card'),
-                            },
-                            ...(formulaMode
-                              ? [
-                                  {
-                                    name: 'formula-card' as const,
-                                    text: t('Formula card'),
-                                  },
-                                ]
-                              : []),
-                            ...(sankeyFeatureFlag
-                              ? [
-                                  {
-                                    name: 'sankey-card' as const,
-                                    text: t('Sankey card'),
-                                  },
-                                ]
-                              : []),
-                            {
-                              name: 'custom-report' as const,
-                              text: t('New custom report'),
-                            },
-                            ...(customReports.length
-                              ? ([Menu.line] satisfies Array<typeof Menu.line>)
-                              : []),
-                            ...customReports.map(report => ({
-                              name: `custom-report-${report.id}` as const,
-                              text: report.name,
-                            })),
-                          ]}
-                        />
-                      </Dialog>
-                    </Popover>
-                  </DialogTrigger>
-
-                  {/* The Editing Button */}
-                  {isEditing ? (
-                    <Button
-                      isDisabled={isImporting}
-                      onPress={() => setIsEditing(false)}
-                    >
-                      <Trans>Finish editing dashboard</Trans>
-                    </Button>
-                  ) : (
-                    <Button
-                      isDisabled={isImporting}
-                      onPress={() => setIsEditing(true)}
-                    >
-                      <Trans>Edit dashboard</Trans>
-                    </Button>
-                  )}
-
-                  {/* The Menu */}
-                  <DialogTrigger>
-                    <Button variant="bare" aria-label={t('Menu')}>
-                      <SvgDotsHorizontalTriple
-                        width={15}
-                        height={15}
-                        style={{ transform: 'rotateZ(90deg)' }}
-                      />
-                    </Button>
-                    <Popover>
-                      <Dialog>
-                        <Menu
-                          slot="close"
-                          onMenuSelect={item => {
-                            switch (item) {
-                              case 'reset':
-                                void onResetDashboard();
-                                break;
-                              case 'export':
-                                onExport();
-                                break;
-                              case 'import':
-                                void onImport();
-                                break;
-                              case 'delete':
-                                void onDeleteDashboard(dashboard.id);
-                                break;
-                              default:
-                                throw new Error(
-                                  `Unrecognized menu option: ${String(item)}`,
-                                );
-                            }
-                          }}
-                          items={[
-                            {
-                              name: 'reset',
-                              text: t('Reset to default'),
-                              disabled: isImporting,
-                            },
-                            Menu.line,
-                            {
-                              name: 'import',
-                              text: t('Import'),
-                              disabled: isImporting,
-                            },
-                            {
-                              name: 'export',
-                              text: t('Export'),
-                              disabled: isImporting,
-                            },
-                            Menu.line,
-                            {
-                              name: 'delete',
-                              text: t('Delete dashboard'),
-                              disabled:
-                                isImporting || dashboardPages.length <= 1,
-                            },
-                          ]}
-                        />
-                      </Dialog>
-                    </Popover>
-                  </DialogTrigger>
-                </>
-              )}
-            </View>
-          </View>
-        )
+        ) : null
       }
       padding={10}
     >
+      <View
+        style={{
+          flexShrink: 0,
+          padding: isNarrowWidth ? '16px 6px 0' : '26px 14px 0',
+        }}
+      >
+        <ReportsInstrument action={isNarrowWidth ? undefined : addWidgetMenu} />
+      </View>
+      {isNarrowWidth ? (
+        <SectionHeader
+          label={<Trans>Your widgets</Trans>}
+          style={{ margin: '34px 6px 4px' }}
+        />
+      ) : (
+        dashboardControls
+      )}
       {isImporting ? (
         <LoadingIndicator message={t('Import is running...')} />
       ) : (

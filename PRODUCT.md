@@ -18,8 +18,13 @@ Calm, trustworthy, practical. The interface should feel like a dependable tool t
 
 ## Anti-references
 
-- Fintech-startup gloss: gradient heroes, glassmorphism, crypto-dashboard neon.
 - Corporate banking UI: navy-and-gold, enterprise-portal density, legalese energy.
+- Decoration for its own sake: gradient heroes, glassmorphism, neon used as ornament.
+- **Superseded in this fork:** the broader "no fintech-startup gloss" position was
+  overturned deliberately — Robinhood's light theme is the chosen visual direction
+  (see DESIGN.md). What survives of the original objection is the ban on
+  decoration, not on the category. This overrides the upstream product's stance
+  for this fork only.
 
 ## Design Principles
 

@@ -23,6 +23,9 @@ import { useContextMenu } from '#hooks/useContextMenu';
 import { useFeatureFlag } from '#hooks/useFeatureFlag';
 import { useGlobalPref } from '#hooks/useGlobalPref';
 
+import { useIsInstrumentMonth } from './MonthsContext';
+import { getCategoryColumnWidth } from './util';
+
 type SidebarGroupProps = {
   group: CategoryGroupEntity;
   editing?: boolean;
@@ -65,6 +68,7 @@ export function SidebarGroup({
   const isGoalTemplatesEnabled = useFeatureFlag('goalTemplatesEnabled');
   const [categoryExpandedStatePref] = useGlobalPref('categoryExpandedState');
   const categoryExpandedState = categoryExpandedStatePref ?? 0;
+  const isInstrument = useIsInstrumentMonth();
 
   const temporary = group.id === 'new';
   const canSortCategories =
@@ -200,7 +204,7 @@ export function SidebarGroup({
       innerRef={innerRef}
       style={{
         ...style,
-        width: 200 + 100 * categoryExpandedState,
+        width: getCategoryColumnWidth(categoryExpandedState),
         backgroundColor: theme.budgetHeaderCurrentMonth,
         overflow: 'hidden',
         '& .hover-visible': {
@@ -242,7 +246,11 @@ export function SidebarGroup({
           }
         }}
         onBlur={() => onEdit(null)}
-        style={{ fontWeight: 600 }}
+        style={
+          isInstrument
+            ? { fontSize: 16, fontWeight: 650, letterSpacing: '-0.014em' }
+            : { fontWeight: 600 }
+        }
         inputProps={{
           style: { marginLeft: 20 },
           placeholder: temporary ? t('New group name') : '',

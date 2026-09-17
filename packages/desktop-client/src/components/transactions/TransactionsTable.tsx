@@ -179,18 +179,47 @@ export const DEFAULT_AMOUNT_COLUMN_WIDTHS: AmountColumnWidths = {
 // Tabular numerals (styles.tnum) make every digit glyph the same width, so a
 // per-character estimate is a good enough proxy for the pixel width for a
 // formatted amount. This would need to be adjusted with the font size.
+// fork: the register reads as an instrument list — taller rows, larger payee
+// and amount type, quiet dates and balances, categories as neutral capsules.
+const REGISTER_ROW_HEIGHT = 48;
+const registerText = {
+  payee: { fontSize: 15, fontWeight: 500, letterSpacing: '-0.016em' },
+  quiet: {
+    fontSize: 13,
+    fontWeight: 500,
+    color: theme.pageTextSubdued,
+  },
+  amount: { fontSize: 15, fontWeight: 600, letterSpacing: '-0.018em' },
+  categoryChip: {
+    flexGrow: 0,
+    alignSelf: 'center',
+    maxWidth: '100%',
+    height: 26,
+    lineHeight: '26px',
+    padding: '0 11px',
+    borderRadius: 999,
+    fontSize: 12,
+    fontWeight: 650,
+    color: theme.pageTextLight,
+    backgroundColor: theme.surfaceSunken,
+  },
+} satisfies Record<string, CSSProperties>;
+
 const AMOUNT_COLUMN_CHAR_WIDTH = 7;
+// fork: amounts are set larger than balances (registerText.amount)
+const AMOUNT_COLUMN_LARGE_CHAR_WIDTH = 9;
 const AMOUNT_COLUMN_PADDING = 16;
 
-function measureAmountColumnWidth(values: string[], minWidth: number) {
+function measureAmountColumnWidth(
+  values: string[],
+  minWidth: number,
+  charWidth = AMOUNT_COLUMN_CHAR_WIDTH,
+) {
   const maxChars = values.reduce(
     (max, value) => Math.max(max, value.length),
     0,
   );
-  return Math.max(
-    minWidth,
-    maxChars * AMOUNT_COLUMN_CHAR_WIDTH + AMOUNT_COLUMN_PADDING,
-  );
+  return Math.max(minWidth, maxChars * charWidth + AMOUNT_COLUMN_PADDING);
 }
 
 // Widths are computed from every transaction currently loaded so the
@@ -210,6 +239,7 @@ export function useAmountColumnWidths(
     amount: measureAmountColumnWidth(
       debitCreditValues,
       DEFAULT_AMOUNT_COLUMN_WIDTHS.amount,
+      AMOUNT_COLUMN_LARGE_CHAR_WIDTH,
     ),
     balance: measureAmountColumnWidth(
       balanceValues,
@@ -335,7 +365,8 @@ const TransactionHeader = memo(
     return (
       <Row
         style={{
-          fontWeight: 300,
+          fontWeight: 500,
+          fontSize: 13,
           zIndex: 200,
           color: theme.tableHeaderText,
           backgroundColor: theme.tableHeaderBackground,
@@ -575,8 +606,10 @@ function HeaderCell({
     whiteSpace: 'nowrap' as CSSProperties['whiteSpace'],
     overflow: 'hidden',
     textOverflow: 'ellipsis',
-    color: theme.tableHeaderText,
-    fontWeight: 300,
+    color: theme.pageTextSubdued,
+    fontSize: 13,
+    fontWeight: 500,
+    letterSpacing: '-0.006em',
     marginLeft,
     marginRight,
   };
@@ -1095,7 +1128,6 @@ const Transaction = memo(function Transaction({
   ascDesc,
   onDragChange,
   onDrop,
-  index,
   amountColumnWidths,
 }: TransactionProps) {
   const { t } = useTranslation();
@@ -1611,7 +1643,7 @@ const Transaction = memo(function Transaction({
             textAlign="flex"
             exposed={focusedField === 'date'}
             value={date}
-            valueStyle={valueStyle}
+            valueStyle={{ ...registerText.quiet, ...valueStyle }}
             formatter={date =>
               date ? formatDate(parseISO(date), dateFormat) : ''
             }
@@ -1722,7 +1754,7 @@ const Transaction = memo(function Transaction({
               payee =>
                 !payee.transfer_acct || payee.transfer_acct !== accountId,
             )}
-            valueStyle={valueStyle}
+            valueStyle={{ ...registerText.payee, ...valueStyle }}
             transaction={transaction}
             transferAccountsByTransaction={transferAccountsByTransaction}
             importedPayee={importedPayee}
@@ -1742,7 +1774,7 @@ const Transaction = memo(function Transaction({
             note={notes ?? ''}
             scheduleNote={isPreview ? schedule?.name : null}
             focused={focusedField === 'notes'}
-            valueStyle={valueStyle}
+            valueStyle={{ ...registerText.quiet, ...valueStyle }}
             onClickTag={onNotesTagClick}
             onUpdate={value => {
               onUpdate('notes', value?.trim());
@@ -1912,6 +1944,12 @@ const Transaction = memo(function Transaction({
             }
             exposed={focusedField === 'category'}
             onExpose={name => !isPreview && onEdit(id, name)}
+            unexposedContent={props => (
+              <UnexposedCellContent
+                {...props}
+                style={categoryId ? registerText.categoryChip : undefined}
+              />
+            )}
             valueStyle={
               !categoryId
                 ? {
@@ -1983,6 +2021,7 @@ const Transaction = memo(function Transaction({
             style={{
               ...(isParent && { fontStyle: 'italic' }),
               ...styles.tnum,
+              ...registerText.amount,
               ...amountStyle,
             }}
             inputProps={{
@@ -2011,15 +2050,18 @@ const Transaction = memo(function Transaction({
               // reformat value so since we might have kept decimals
               value ? amountToCurrency(currencyToAmount(value) || 0) : ''
             }
-            valueStyle={valueStyle}
             textAlign="right"
             title={credit}
             onExpose={name => !isPreview && onEdit(id, name)}
             style={{
               ...(isParent && { fontStyle: 'italic' }),
               ...styles.tnum,
+              ...registerText.amount,
               ...amountStyle,
             }}
+            valueStyle={
+              valueStyle ?? (isPreview ? null : { color: theme.noticeText })
+            }
             inputProps={{
               value: credit,
               onUpdate: onUpdate.bind(null, 'credit'),
@@ -2042,10 +2084,9 @@ const Transaction = memo(function Transaction({
                 : integerToCurrency(runningBalance)
             }
             valueStyle={{
+              ...registerText.quiet,
               color:
-                runningBalance < 0
-                  ? theme.numberNegative
-                  : theme.numberPositive,
+                runningBalance < 0 ? theme.errorText : theme.pageTextSubdued,
             }}
             style={{ ...styles.tnum, ...amountStyle }}
             width={amountColumnWidths.balance}
@@ -2093,14 +2134,14 @@ const Transaction = memo(function Transaction({
       <Row
         ref={rowRef}
         {...dragProps}
+        height={REGISTER_ROW_HEIGHT}
         style={{
+          // fork: hairlines separate rows, not zebra stripes
           backgroundColor: selected
             ? theme.tableRowBackgroundHighlight
             : backgroundFocus
               ? theme.tableRowBackgroundHover
-              : index % 2 === 0
-                ? theme.tableBackground
-                : theme.tableRowBackgroundAlternate,
+              : theme.tableBackground,
           ':hover': !(backgroundFocus || selected) && {
             backgroundColor: theme.tableRowBackgroundHover,
           },
@@ -2916,6 +2957,7 @@ function TransactionTableInner({
       >
         <Table
           navigator={tableNavigator}
+          rowHeight={REGISTER_ROW_HEIGHT}
           ref={tableRef}
           listContainerRef={listContainerRef}
           items={transactionsToRender}

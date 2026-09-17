@@ -1,11 +1,10 @@
 import React from 'react';
-import type { CSSProperties } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import { Trans } from 'react-i18next';
 
-import { AlignedText } from '@actual-app/components/aligned-text';
-import { Block } from '@actual-app/components/block';
 import { styles } from '@actual-app/components/styles';
-import { Tooltip } from '@actual-app/components/tooltip';
+import { Text } from '@actual-app/components/text';
+import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
 
 import { EnvelopeCellValue } from '#components/budget/envelope/EnvelopeBudgetComponents';
@@ -41,6 +40,55 @@ function makeSignedFormatter(
   };
 }
 
+/**
+ * One figure in the month's summary, as a tile: the label small and quiet, the
+ * figure below it in the money tier. The row of them is the first thing read on
+ * the surface, so each one has to survive being glanced at.
+ */
+function TotalTile({
+  label,
+  children,
+}: {
+  label: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <View
+      style={{
+        gap: 3,
+        padding: '11px 13px 12px',
+        borderRadius: 10,
+        backgroundColor: theme.tableBackground,
+        boxShadow: `inset 0 0 0 1px ${theme.tableBorder}`,
+        minWidth: 0,
+      }}
+    >
+      <Text
+        style={{
+          fontSize: 12,
+          fontWeight: 500,
+          letterSpacing: '-0.006em',
+          color: theme.pageTextSubdued,
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+        }}
+      >
+        {label}
+      </Text>
+      {children}
+    </View>
+  );
+}
+
+const figure: CSSProperties = {
+  ...styles.tnum,
+  fontSize: 18,
+  fontWeight: 600,
+  letterSpacing: '-0.028em',
+  color: theme.pageText,
+};
+
 type TotalsListProps = {
   prevMonthName: string;
   style?: CSSProperties;
@@ -50,57 +98,27 @@ export function TotalsList({ prevMonthName, style }: TotalsListProps) {
   const format = useFormat();
   const signedFormatter = makeSignedFormatter(format);
   const invertedSignedFormatter = makeSignedFormatter(format, true);
+
   return (
     <View
       style={{
-        flexDirection: 'row',
-        lineHeight: 1.5,
-        justifyContent: 'center',
-        ...styles.smallText,
+        display: 'grid',
+        // four across where there is room, two-up where there is not
+        gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+        gap: 8,
         ...style,
       }}
     >
-      <View
-        style={{
-          textAlign: 'right',
-          marginRight: 10,
-          minWidth: 50,
-        }}
-      >
-        <Tooltip
-          style={{ ...styles.tooltip, lineHeight: 1.5, padding: '6px 10px' }}
-          content={
-            <>
-              <AlignedText
-                left="Income:"
-                right={
-                  <EnvelopeCellValue
-                    binding={envelopeBudget.totalIncome}
-                    type="financial"
-                  />
-                }
-              />
-              <AlignedText
-                left="From Last Month:"
-                right={
-                  <EnvelopeCellValue
-                    binding={envelopeBudget.fromLastMonth}
-                    type="financial"
-                  />
-                }
-              />
-            </>
-          }
-          placement="bottom end"
+      <TotalTile label={<Trans>Available funds</Trans>}>
+        <EnvelopeCellValue
+          binding={envelopeBudget.incomeAvailable}
+          type="financial"
         >
-          <EnvelopeCellValue
-            binding={envelopeBudget.incomeAvailable}
-            type="financial"
-          >
-            {props => <CellValueText {...props} style={{ fontWeight: 600 }} />}
-          </EnvelopeCellValue>
-        </Tooltip>
+          {props => <CellValueText {...props} style={figure} />}
+        </EnvelopeCellValue>
+      </TotalTile>
 
+      <TotalTile label={<Trans>Overspent in {{ prevMonthName }}</Trans>}>
         <EnvelopeCellValue
           binding={envelopeBudget.lastMonthOverspent}
           type="financial"
@@ -108,12 +126,14 @@ export function TotalsList({ prevMonthName, style }: TotalsListProps) {
           {props => (
             <CellValueText
               {...props}
-              style={{ fontWeight: 600 }}
+              style={figure}
               formatter={signedFormatter}
             />
           )}
         </EnvelopeCellValue>
+      </TotalTile>
 
+      <TotalTile label={<Trans>Budgeted</Trans>}>
         <EnvelopeCellValue
           binding={envelopeBudget.totalBudgeted}
           type="financial"
@@ -121,12 +141,14 @@ export function TotalsList({ prevMonthName, style }: TotalsListProps) {
           {props => (
             <CellValueText
               {...props}
-              style={{ fontWeight: 600 }}
+              style={figure}
               formatter={signedFormatter}
             />
           )}
         </EnvelopeCellValue>
+      </TotalTile>
 
+      <TotalTile label={<Trans>For next month</Trans>}>
         <EnvelopeCellValue
           binding={envelopeBudget.forNextMonth}
           type="financial"
@@ -134,30 +156,12 @@ export function TotalsList({ prevMonthName, style }: TotalsListProps) {
           {props => (
             <CellValueText
               {...props}
-              style={{ fontWeight: 600 }}
+              style={figure}
               formatter={invertedSignedFormatter}
             />
           )}
         </EnvelopeCellValue>
-      </View>
-
-      <View>
-        <Block>
-          <Trans>Available funds</Trans>
-        </Block>
-
-        <Block>
-          <Trans>Overspent in {{ prevMonthName }}</Trans>
-        </Block>
-
-        <Block>
-          <Trans>Budgeted</Trans>
-        </Block>
-
-        <Block>
-          <Trans>For next month</Trans>
-        </Block>
-      </View>
+      </TotalTile>
     </View>
   );
 }
