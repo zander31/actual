@@ -18,6 +18,11 @@ import type {
 import { Row, ROW_HEIGHT } from '#components/table';
 import { useDragRef } from '#hooks/useDragRef';
 
+import {
+  INSTRUMENT_GROUP_ROW_HEIGHT,
+  INSTRUMENT_ROW_HEIGHT,
+  useIsInstrumentMonth,
+} from './MonthsContext';
 import { RenderMonths } from './RenderMonths';
 import { SidebarGroup } from './SidebarGroup';
 
@@ -88,10 +93,16 @@ export function ExpenseGroup({
   });
 
   const { ExpenseGroupComponent: MonthComponent } = useBudgetComponents();
+  const isInstrument = useIsInstrumentMonth();
+  const groupRowHeight = isInstrument
+    ? INSTRUMENT_GROUP_ROW_HEIGHT
+    : ROW_HEIGHT;
+  const categoryRowHeight = isInstrument ? INSTRUMENT_ROW_HEIGHT : ROW_HEIGHT;
 
   return (
     <Row
       collapsed
+      height={isInstrument ? INSTRUMENT_GROUP_ROW_HEIGHT : undefined}
       style={{
         fontWeight: 600,
         opacity: group.hidden ? 0.33 : undefined,
@@ -106,8 +117,11 @@ export function ExpenseGroup({
             left: 0,
             right: 0,
             height: collapsed
-              ? ROW_HEIGHT - 1
-              : (1 + group.categories.length) * (ROW_HEIGHT - 1) + 1,
+              ? groupRowHeight - 1
+              : groupRowHeight -
+                1 +
+                group.categories.length * (categoryRowHeight - 1) +
+                1,
             zIndex: 10000,
           }}
         >
@@ -143,7 +157,7 @@ export function ExpenseGroup({
           onSortCategories={onSortCategories}
           onShowNewCategory={onShowNewCategory}
         />
-        <RenderMonths>
+        <RenderMonths style={isInstrument ? { borderLeft: 0 } : undefined}>
           {({ month }) => <MonthComponent month={month} group={group} />}
         </RenderMonths>
       </View>

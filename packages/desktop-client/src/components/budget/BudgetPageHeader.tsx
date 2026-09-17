@@ -7,7 +7,7 @@ import { View } from '@actual-app/components/view';
 import { useGlobalPref } from '#hooks/useGlobalPref';
 
 import { MonthPicker } from './MonthPicker';
-import { getScrollbarWidth } from './util';
+import { getCategoryColumnWidth, getScrollbarWidth } from './util';
 
 type BudgetPageHeaderProps = {
   startMonth: string;
@@ -20,19 +20,23 @@ export const BudgetPageHeader = memo<BudgetPageHeaderProps>(
   ({ startMonth, onMonthSelect, numMonths, monthBounds }) => {
     const [categoryExpandedStatePref] = useGlobalPref('categoryExpandedState');
     const categoryExpandedState = categoryExpandedStatePref ?? 0;
-    const offsetMultipleMonths = numMonths === 1 ? 4 : 0;
+
+    // The strip sits over the months it steps through. With one month that is
+    // the whole surface, so it starts on the same left edge as the summary and
+    // the table below it; with more it starts where the month columns do.
+    const marginLeft =
+      numMonths === 1 ? 5 : getCategoryColumnWidth(categoryExpandedState) + 5;
 
     return (
       <View
         style={{
-          marginLeft:
-            200 + 100 * categoryExpandedState + 5 - offsetMultipleMonths,
+          marginLeft,
           flexShrink: 0,
         }}
       >
         <View
           style={{
-            marginRight: 5 + getScrollbarWidth() - offsetMultipleMonths,
+            marginRight: 5 + getScrollbarWidth(),
           }}
         >
           <MonthPicker

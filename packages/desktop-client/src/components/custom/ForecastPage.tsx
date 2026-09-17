@@ -1,11 +1,12 @@
-// Fork addition: 90-day cash curve = upstream schedules forecast, overlaid with rolling
+// Fork addition: cash curve = upstream schedules forecast, overlaid with rolling
 // 3-month variable-spend rates (non-scheduled outflows) as best / expected / worst bands,
-// plus projected month-end balances for the next 3 months.
+// plus projected month-end balances across the chosen horizon.
 //
 // The page has one job: say whether the money runs out and when. The figure
-// leads, the curve changes colour at zero, the crossing is marked, and
-// everything else recedes to hairlines.
-import { useEffect, useMemo, useState } from 'react';
+// leads (and follows the pointer along the curve), the curve changes colour at
+// zero, the crossing is marked, and everything else recedes to hairlines.
+import { useEffect, useId, useMemo, useState } from 'react';
+import type { KeyboardEvent, MouseEvent } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 
 import { useResponsive } from '@actual-app/components/hooks/useResponsive';
@@ -18,18 +19,6 @@ import { send } from '@actual-app/core/platform/client/connection';
 import * as monthUtils from '@actual-app/core/shared/months';
 import { q } from '@actual-app/core/shared/query';
 import type { ForecastDataPoint } from '@actual-app/core/types/models/forecast';
-import {
-  Area,
-  CartesianGrid,
-  ComposedChart,
-  Line,
-  ReferenceDot,
-  ReferenceLine,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts';
 
 import { Page } from '#components/Page';
 import { useAccounts } from '#hooks/useAccounts';
@@ -41,25 +30,35 @@ import {
   monthEnds,
   monthlyTotals,
   projectBands,
-  RED_BELOW,
   variableSpendRates,
 } from './forecastMath';
-import type { SpendRates } from './forecastMath';
+import type { BandPoint, SpendRates } from './forecastMath';
 import {
   chip,
   columnLabel,
   DashSwatch,
-  Delta,
+  Direction,
   HeroNumber,
   LegendRow,
-  Rule,
+  PillTabs,
+  SectionHeader,
   sectionLabel,
   Swatch,
   wash,
 } from './primitives';
 
-const DAYS = 90;
 const HISTORY_MONTHS = 3;
+
+type Horizon = '30D' | '60D' | '90D' | '1Y';
+const HORIZON_DAYS: Record<Horizon, number> = {
+  '30D': 30,
+  '60D': 60,
+  '90D': 90,
+  '1Y': 365,
+};
+
+const CHART_HEIGHT = 236;
+const CHART_PAD = 20;
 
 export function ForecastPage() {
   const { t } = useTranslation();
@@ -72,8 +71,11 @@ export function ForecastPage() {
   );
 
   const [accountId, setAccountId] = useState<string>('');
+  const [horizon, setHorizon] = useState<Horizon>('90D');
   const [points, setPoints] = useState<ForecastDataPoint[]>([]);
   const [history, setHistory] = useState<number[]>([]);
+  const [scrub, setScrub] = useState<number | null>(null);
+  const days = HORIZON_DAYS[horizon];
 
   useEffect(() => {
     if (!accountId && onBudget.length) {
@@ -81,24 +83,43 @@ export function ForecastPage() {
     }
   }, [accountId, onBudget]);
 
+  const accountIds = useMemo(
+    () =>
+      !accountId
+        ? []
+        : accountId === 'all'
+          ? onBudget.map(a => a.id)
+          : [accountId],
+    [accountId, onBudget],
+  );
+
   useEffect(() => {
-    if (!accountId) return;
-    const ids = accountId === 'all' ? onBudget.map(a => a.id) : [accountId];
+    if (!accountIds.length) return;
+    const today = monthUtils.currentDay();
+    let cancelled = false;
+    void send('forecast/generate', {
+      accountIds,
+      startDate: today,
+      endDate: monthUtils.addDays(today, days),
+    }).then(res => {
+      if (!cancelled) {
+        setScrub(null);
+        setPoints(res.dataPoints);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [accountIds, days]);
+
+  useEffect(() => {
+    if (!accountIds.length) return;
     const today = monthUtils.currentDay();
     const thisMonthStart = monthUtils.firstDayOfMonth(today);
     const historyStart = monthUtils.firstDayOfMonth(
       monthUtils.subMonths(today, HISTORY_MONTHS),
     );
     let cancelled = false;
-
-    void send('forecast/generate', {
-      accountIds: ids,
-      startDate: today,
-      endDate: monthUtils.addDays(today, DAYS),
-    }).then(res => {
-      if (!cancelled) setPoints(res.dataPoints);
-    });
-
     // variable spend = outflows not produced by a schedule, last 3 complete months, same accounts
     void aqlQuery(
       q('transactions')
@@ -111,7 +132,7 @@ export function ForecastPage() {
           schedule: null,
           transfer_id: null,
           is_parent: false,
-          account: { $oneof: ids },
+          account: { $oneof: accountIds },
         })
         .select(['date', 'amount']),
     ).then(({ data }) => {
@@ -122,7 +143,7 @@ export function ForecastPage() {
     return () => {
       cancelled = true;
     };
-  }, [accountId, onBudget]);
+  }, [accountIds]);
 
   const rates: SpendRates = useMemo(
     () => variableSpendRates(history),
@@ -132,371 +153,246 @@ export function ForecastPage() {
     () => projectBands(combineByDate(points), rates),
     [points, rates],
   );
-  const ends = useMemo(() => monthEnds(bands), [bands]);
-  const chartData = bands.map(b => ({
-    ...b,
-    band: [b.worst, b.best] as [number, number],
-  }));
+  // only whole months: a month the horizon cuts off part-way hasn't landed
+  const ends = useMemo(
+    () =>
+      monthEnds(bands, 12).filter(
+        e => e.date === monthUtils.lastDayOfMonth(e.date),
+      ),
+    [bands],
+  );
 
   // the answer the page exists to give
-  const crossing = bands.find(b => b.expected < 0) ?? null;
-  const lowest = bands.reduce<(typeof bands)[number] | null>(
-    (m, b) => (!m || b.expected < m.expected ? b : m),
-    null,
+  const crossingIndex = bands.findIndex(b => b.expected < 0);
+  const crossing = crossingIndex >= 0 ? bands[crossingIndex] : null;
+  const lowestIndex = bands.reduce(
+    (m, b, i) => (b.expected < bands[m].expected ? i : m),
+    0,
   );
-  // where zero sits in the plotted range, so the curve can change colour there
-  // instead of the chart shading a whole region red
-  const yMax = Math.max(0, ...bands.map(b => b.best));
-  const yMin = Math.min(0, ...bands.map(b => b.worst));
-  const zeroOffset = yMax === yMin ? 1 : yMax / (yMax - yMin);
-  // widened so recharts infers a numeric Y domain rather than the literal 0
-  const zeroLine: number = 0;
+  const shownIndex =
+    scrub != null && scrub < bands.length ? scrub : lowestIndex;
+  const shown = bands.length ? bands[shownIndex] : null;
   const last = bands.length ? bands[bands.length - 1] : null;
   const lastDate = last?.date ?? null;
-  const endColor =
-    last && last.expected < 0 ? theme.errorBorder : theme.reportsChartFill;
+
+  const horizonLabel = {
+    '30D': t('30 days'),
+    '60D': t('60 days'),
+    '90D': t('90 days'),
+    '1Y': t('a year'),
+  }[horizon];
+  const shortDate = (d: string) => monthUtils.format(d, 'd MMM');
   const longDate = (d: string) => monthUtils.format(d, 'EEEE, d MMMM');
 
+  const accountSelect = (
+    <Select
+      value={accountId}
+      onChange={v => setAccountId(v)}
+      options={[
+        ['all', t('All on-budget accounts')],
+        ...onBudget.map(a => [a.id, a.name] as [string, string]),
+      ]}
+    />
+  );
+
+  const heroInk =
+    shown && shown.expected < 0 ? theme.errorText : theme.pageText;
+
   return (
-    <Page header={isNarrowWidth ? t('Forecast') : null}>
+    <Page
+      header={isNarrowWidth ? t('Forecast') : null}
+      padding={isNarrowWidth ? undefined : 24}
+    >
       <View
         style={{
-          flexDirection: 'row',
-          gap: 12,
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          marginBottom: 22,
+          paddingTop: isNarrowWidth ? 16 : 26,
+          paddingBottom: 60,
           flexShrink: 0,
         }}
       >
-        <Select
-          value={accountId}
-          onChange={v => setAccountId(v)}
-          options={[
-            ['all', t('All on-budget accounts')],
-            ...onBudget.map(a => [a.id, a.name] as [string, string]),
-          ]}
-        />
-      </View>
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'flex-start',
+            justifyContent: 'space-between',
+            gap: 24,
+            flexWrap: 'wrap',
+          }}
+        >
+          <View style={{ gap: 6, minWidth: 0 }}>
+            <Text
+              style={{
+                fontSize: 13,
+                fontWeight: 500,
+                letterSpacing: '-0.008em',
+                color: theme.pageTextSubdued,
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {scrub != null && shown
+                ? t('Projected balance on {{date}}', {
+                    date: shortDate(shown.date),
+                  })
+                : t('Projected balance')}
+            </Text>
+            <HeroNumber color={heroInk}>
+              {shown ? format(shown.expected, 'financial') : ' '}
+            </HeroNumber>
+            {shown && (
+              <View
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 12,
+                  flexWrap: 'wrap',
+                }}
+              >
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 6,
+                  }}
+                >
+                  <Direction
+                    up={shown.expected >= bands[0].expected}
+                    color={heroInk}
+                  />
+                  <Text
+                    style={{
+                      ...styles.tnum,
+                      fontSize: 15,
+                      fontWeight: 600,
+                      letterSpacing: '-0.012em',
+                      whiteSpace: 'nowrap',
+                      color: heroInk,
+                    }}
+                  >
+                    {shortDate(shown.date)}
+                  </Text>
+                  <Text
+                    style={{
+                      fontSize: 15,
+                      fontWeight: 500,
+                      letterSpacing: '-0.012em',
+                      whiteSpace: 'nowrap',
+                      color: theme.pageTextLight,
+                    }}
+                  >
+                    {scrub != null
+                      ? t('from today')
+                      : t('lowest in {{horizon}}', { horizon: horizonLabel })}
+                  </Text>
+                </View>
+                {crossing && (
+                  <Text
+                    style={{
+                      ...chip,
+                      fontWeight: 650,
+                      whiteSpace: 'nowrap',
+                      backgroundColor: wash(
+                        theme.errorBorder,
+                        14,
+                        theme.pageBackground,
+                      ),
+                      color: theme.errorText,
+                    }}
+                  >
+                    <Trans>Runs out {{ when: shortDate(crossing.date) }}</Trans>
+                  </Text>
+                )}
+              </View>
+            )}
+          </View>
+          <View style={{ flexShrink: 0 }}>{accountSelect}</View>
+        </View>
 
-      {lowest && (
-        <View style={{ marginBottom: 30, gap: 8, flexShrink: 0 }}>
-          <HeroNumber
-            color={lowest.expected < 0 ? theme.errorText : theme.pageText}
-          >
-            {format(lowest.expected, 'financial')}
-          </HeroNumber>
+        <BandChart
+          bands={bands}
+          shownIndex={shownIndex}
+          scrubbing={scrub != null}
+          crossingIndex={crossingIndex}
+          onScrub={setScrub}
+          describe={b =>
+            t(
+              '{{date}}: expected {{expected}}, worst {{worst}}, best {{best}}',
+              {
+                date: longDate(b.date),
+                expected: format(b.expected, 'financial'),
+                worst: format(b.worst, 'financial'),
+                best: format(b.best, 'financial'),
+              },
+            )
+          }
+        />
+
+        <PillTabs
+          label={t('Forecast horizon')}
+          value={horizon}
+          onChange={setHorizon}
+          options={(Object.keys(HORIZON_DAYS) as Horizon[]).map(h => ({
+            value: h,
+            label: h,
+          }))}
+          style={{ marginTop: 10 }}
+        />
+
+        {last && (
           <View
             style={{
               flexDirection: 'row',
-              alignItems: 'center',
-              gap: 12,
               flexWrap: 'wrap',
+              columnGap: 30,
+              rowGap: 8,
+              marginTop: 22,
+              flexShrink: 0,
             }}
           >
-            <Delta
-              up={lowest.expected >= 0}
-              amount={
-                crossing ? t('Projected low') : t('Thinnest day in 90 days')
-              }
-              period={longDate(lowest.date)}
+            <LegendRow
+              swatch={<Swatch color={theme.reportsChartFill} />}
+              value={t('{{worst}} to {{best}}', {
+                worst: format(last.worst, 'financial-no-decimals'),
+                best: format(last.best, 'financial-no-decimals'),
+              })}
+              label={t('range in {{horizon}}', { horizon: horizonLabel })}
             />
-            {crossing && (
-              <Text
-                style={{
-                  ...chip,
-                  backgroundColor: wash(
-                    theme.errorText,
-                    12,
-                    theme.pageBackground,
-                  ),
-                  color: theme.errorText,
-                }}
-              >
-                <Trans>
-                  Runs out {{ when: monthUtils.format(crossing.date, 'd MMM') }}
-                </Trans>
-              </Text>
-            )}
+            <LegendRow
+              swatch={<DashSwatch color={theme.pageTextSubdued} />}
+              value={format(last.schedules, 'financial-no-decimals')}
+              label={t('schedules alone')}
+            />
           </View>
-        </View>
-      )}
+        )}
 
-      {last && (
-        <View style={{ gap: 7, marginBottom: 14, flexShrink: 0 }}>
-          <LegendRow
-            swatch={<Swatch color={theme.reportsChartFill} />}
-            value={t('{{worst}} to {{best}}', {
-              worst: format(last.worst, 'financial-no-decimals'),
-              best: format(last.best, 'financial-no-decimals'),
-            })}
-            label={t('Range in 90 days')}
+        {ends.length > 0 && (
+          <MonthLands
+            ends={ends}
+            narrow={isNarrowWidth}
+            format={v => format(v, 'financial-no-decimals')}
           />
-          <LegendRow
-            swatch={<DashSwatch color={theme.pageTextSubdued} />}
-            value={format(last.schedules, 'financial-no-decimals')}
-            label={t('Schedules alone')}
-          />
-        </View>
-      )}
-
-      <svg
-        width="0"
-        height="0"
-        aria-hidden="true"
-        style={{ position: 'absolute' }}
-      >
-        <defs>
-          {/* one hard stop exactly at zero: above it the curve is a gain,
-              below it it is money you do not have */}
-          <linearGradient id="fc-curve" x1="0" y1="0" x2="0" y2="1">
-            <stop offset={zeroOffset} stopColor={theme.reportsChartFill} />
-            <stop offset={zeroOffset} stopColor={theme.errorBorder} />
-          </linearGradient>
-          <linearGradient id="fc-band" x1="0" y1="0" x2="0" y2="1">
-            <stop
-              offset={zeroOffset}
-              stopColor={theme.reportsChartFill}
-              stopOpacity={0.16}
-            />
-            <stop
-              offset={zeroOffset}
-              stopColor={theme.errorBorder}
-              stopOpacity={0.12}
-            />
-          </linearGradient>
-        </defs>
-      </svg>
-
-      <View
-        style={{
-          height: 300,
-          // a flex column will happily shrink this below the SVG it contains,
-          // which spills the axes onto whatever follows
-          flexShrink: 0,
-          backgroundColor: theme.surfaceSunken,
-          borderRadius: 16,
-          padding: '10px 8px 0 0',
-        }}
-      >
-        <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart
-            data={chartData}
-            margin={{ top: 6, right: 16, bottom: 0, left: 4 }}
-          >
-            <CartesianGrid
-              vertical={false}
-              stroke={theme.pageTextSubdued}
-              strokeOpacity={0.35}
-              strokeDasharray="1 5"
-            />
-            <XAxis
-              dataKey="date"
-              tick={{ fill: theme.pageTextSubdued, fontSize: 11 }}
-              tickFormatter={d => monthUtils.format(d, 'd MMM')}
-              tickLine={false}
-              axisLine={{ stroke: theme.tableBorder }}
-              minTickGap={34}
-            />
-            <YAxis
-              tick={{ fill: theme.pageTextSubdued, fontSize: 11 }}
-              tickFormatter={v => format(v, 'financial-no-decimals')}
-              tickLine={false}
-              axisLine={false}
-              width={74}
-            />
-            <Tooltip
-              cursor={{ stroke: theme.pageTextSubdued, strokeWidth: 1 }}
-              labelFormatter={d => longDate(String(d))}
-              formatter={(value, name) =>
-                Array.isArray(value)
-                  ? [
-                      `${format(Number(value[0]), 'financial')} – ${format(Number(value[1]), 'financial')}`,
-                      t('worst – best'),
-                    ]
-                  : [format(Number(value), 'financial'), String(name)]
-              }
-              contentStyle={{
-                backgroundColor: theme.tooltipBackground,
-                color: theme.tooltipText,
-                border: `1px solid ${theme.tooltipBorder}`,
-                borderRadius: 6,
-                boxShadow: '0 6px 16px rgba(0,0,0,0.14)',
-                ...styles.tnum,
-              }}
-            />
-            <ReferenceLine
-              y={0}
-              stroke={theme.pageText}
-              strokeWidth={1}
-              ifOverflow="extendDomain"
-            />
-            <ReferenceLine
-              y={RED_BELOW}
-              stroke={theme.errorText}
-              strokeDasharray="3 4"
-              strokeOpacity={0.5}
-              label={{
-                value: t('$500'),
-                position: 'insideTopRight',
-                fill: theme.errorText,
-                fontSize: 10,
-              }}
-            />
-            <Area
-              type="monotone"
-              dataKey="band"
-              stroke="none"
-              fill="url(#fc-band)"
-              fillOpacity={1}
-              name={t('band')}
-              animationDuration={700}
-              animationEasing="ease-out"
-            />
-            <Line
-              type="monotone"
-              dataKey="schedules"
-              stroke={theme.pageTextLight}
-              dot={false}
-              strokeDasharray="1 5"
-              strokeLinecap="round"
-              strokeWidth={2}
-              name={t('schedules only')}
-              animationDuration={700}
-              animationEasing="ease-out"
-            />
-            <Line
-              type="monotone"
-              dataKey="expected"
-              stroke="url(#fc-curve)"
-              dot={false}
-              strokeWidth={2.5}
-              strokeLinecap="round"
-              name={t('expected')}
-              animationDuration={900}
-              animationEasing="ease-out"
-            />
-            {crossing && (
-              <ReferenceDot
-                x={crossing.date}
-                y={zeroLine}
-                r={12}
-                fill={theme.errorBorder}
-                fillOpacity={0.18}
-                stroke="none"
-              />
-            )}
-            {crossing && (
-              <ReferenceDot
-                x={crossing.date}
-                y={zeroLine}
-                r={5}
-                fill={theme.errorBorder}
-                stroke={theme.surfaceSunken}
-                strokeWidth={2}
-              />
-            )}
-            {last && (
-              <ReferenceDot
-                x={last.date}
-                y={last.expected}
-                r={12}
-                fill={endColor}
-                fillOpacity={0.18}
-                stroke="none"
-              />
-            )}
-            {last && (
-              <ReferenceDot
-                x={last.date}
-                y={last.expected}
-                r={5}
-                fill={endColor}
-                stroke={theme.surfaceSunken}
-                strokeWidth={2}
-              />
-            )}
-          </ComposedChart>
-        </ResponsiveContainer>
-      </View>
-
-      <View style={{ marginTop: 34, maxWidth: 580, flexShrink: 0 }}>
-        <Text style={{ ...styles.displayText, marginBottom: 14 }}>
-          <Trans>Where each month lands</Trans>
-        </Text>
-        <View
-          style={{
-            display: 'grid',
-            gridTemplateColumns: '1.3fr 1fr 1fr 1fr',
-            rowGap: 0,
-            columnGap: 16,
-            flexShrink: 0,
-          }}
-        >
-          {[t('Month'), t('Worst'), t('Expected'), t('Best')].map((h, i) => (
-            <Text
-              key={h}
-              style={{
-                ...columnLabel,
-                textAlign: i === 0 ? 'left' : 'right',
-                paddingBottom: 7,
-              }}
-            >
-              {h}
-            </Text>
-          ))}
-          <Rule style={{ gridColumn: '1 / -1' }} />
-          {ends.map(e => {
-            const cell = {
-              ...styles.tnum,
-              textAlign: 'right' as const,
-              padding: '9px 0',
-            };
-            return (
-              <View key={e.date} style={{ display: 'contents' }}>
-                <Text style={{ padding: '9px 0', color: theme.pageText }}>
-                  {monthUtils.format(e.date.slice(0, 7), 'MMMM yyyy')}
-                </Text>
-                <Text
-                  style={{
-                    ...cell,
-                    color:
-                      e.worst < 0 ? theme.errorText : theme.pageTextSubdued,
-                  }}
-                >
-                  {format(e.worst, 'financial-no-decimals')}
-                </Text>
-                <Text
-                  style={{
-                    ...cell,
-                    fontWeight: 600,
-                    color: e.expected < 0 ? theme.errorText : theme.pageText,
-                  }}
-                >
-                  {format(e.expected, 'financial-no-decimals')}
-                </Text>
-                <Text style={{ ...cell, color: theme.pageTextSubdued }}>
-                  {format(e.best, 'financial-no-decimals')}
-                </Text>
-                <Rule style={{ gridColumn: '1 / -1' }} />
-              </View>
-            );
-          })}
-        </View>
+        )}
 
         <View
           style={{
-            marginTop: 20,
-            padding: '14px 16px',
+            marginTop: 22,
+            padding: '16px 18px',
             borderRadius: 14,
             backgroundColor: theme.surfaceSunken,
             gap: 5,
+            maxWidth: 640,
+            flexShrink: 0,
           }}
         >
           <Text style={{ ...sectionLabel }}>
             <Trans>How this is worked out</Trans>
           </Text>
-          <Text style={{ color: theme.pageTextLight, lineHeight: 1.55 }}>
+          <Text
+            style={{
+              color: theme.pageTextLight,
+              lineHeight: 1.55,
+              fontSize: 13,
+            }}
+          >
             <Trans>
               The dashed line is your schedules alone, from the same engine as
               the Balance Forecast report. The band subtracts your best, average
@@ -529,5 +425,436 @@ export function ForecastPage() {
         </View>
       </View>
     </Page>
+  );
+}
+
+/**
+ * The forecast instrument: a best/worst band washed green above zero and red
+ * below it, the expected line changing colour exactly at zero, schedules alone
+ * dotted, and the crossing marked. Hovering (or arrow keys) scrubs the hero.
+ */
+function BandChart({
+  bands,
+  shownIndex,
+  scrubbing,
+  crossingIndex,
+  onScrub,
+  describe,
+}: {
+  bands: BandPoint[];
+  shownIndex: number;
+  scrubbing: boolean;
+  crossingIndex: number;
+  onScrub: (index: number | null) => void;
+  describe: (b: BandPoint) => string;
+}) {
+  const id = useId().replace(/:/g, '');
+  const n = bands.length;
+  const recess = {
+    position: 'relative' as const,
+    height: CHART_HEIGHT,
+    marginTop: 22,
+    flexShrink: 0,
+    backgroundColor: theme.surfaceSunken,
+    borderRadius: 16,
+    overflow: 'hidden' as const,
+  };
+  if (n < 2) {
+    return <View style={recess} />;
+  }
+
+  // zero always sits inside the plotted range: distance to it is the point
+  const hi = Math.max(0, ...bands.map(b => b.best));
+  const lo = Math.min(0, ...bands.map(b => b.worst));
+  const span = hi - lo || 1;
+  const x = (i: number) => (i / (n - 1)) * 1000;
+  const y = (v: number) =>
+    CHART_HEIGHT -
+    CHART_PAD -
+    ((v - lo) / span) * (CHART_HEIGHT - 2 * CHART_PAD);
+  const path = (vals: number[]) =>
+    vals
+      .map((v, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)} ${y(v).toFixed(1)}`)
+      .join(' ');
+  const band =
+    path(bands.map(b => b.best)) +
+    ' ' +
+    bands
+      .map((_, k) => {
+        const i = n - 1 - k;
+        return `L${x(i).toFixed(1)} ${y(bands[i].worst).toFixed(1)}`;
+      })
+      .join(' ') +
+    ' Z';
+  const zeroY = y(0);
+  const zeroOffset = Math.max(0, Math.min(1, zeroY / CHART_HEIGHT));
+
+  // where the expected line actually meets zero, between the two days
+  let crossX: number | null = null;
+  if (crossingIndex === 0) {
+    crossX = 0;
+  } else if (crossingIndex > 0) {
+    const a = bands[crossingIndex - 1].expected;
+    const b = bands[crossingIndex].expected;
+    crossX = x(crossingIndex - 1 + a / (a - b));
+  }
+
+  const shown = bands[shownIndex];
+  const pct = (px: number) => `${(px / 10).toFixed(2)}%`;
+  const dotFill =
+    shown.expected < 0 ? theme.errorBorder : theme.reportsChartFill;
+
+  return (
+    <View
+      role="img"
+      tabIndex={0}
+      aria-label={describe(shown)}
+      onMouseMove={(e: MouseEvent<HTMLDivElement>) => {
+        const r = e.currentTarget.getBoundingClientRect();
+        const t = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
+        onScrub(Math.round(t * (n - 1)));
+      }}
+      onMouseLeave={() => onScrub(null)}
+      onBlur={() => onScrub(null)}
+      onKeyDown={(e: KeyboardEvent) => {
+        const step: Record<string, number> = {
+          ArrowLeft: Math.max(0, shownIndex - 1),
+          ArrowRight: Math.min(n - 1, shownIndex + 1),
+          Home: 0,
+          End: n - 1,
+        };
+        if (e.key in step) {
+          e.preventDefault();
+          onScrub(step[e.key]);
+        } else if (e.key === 'Escape') {
+          onScrub(null);
+        }
+      }}
+      style={{
+        ...recess,
+        cursor: 'crosshair',
+        outline: 'none',
+        ':focus-visible': {
+          boxShadow: `0 0 0 2px ${theme.formInputBorderSelected}`,
+        },
+      }}
+    >
+      <svg
+        viewBox={`0 0 1000 ${CHART_HEIGHT}`}
+        preserveAspectRatio="none"
+        aria-hidden="true"
+        style={{ width: '100%', height: CHART_HEIGHT, display: 'block' }}
+      >
+        <defs>
+          {/* one hard stop exactly at zero, in chart space so the band and
+              the line share it: above is money you have, below is not */}
+          <linearGradient
+            id={`${id}-band`}
+            gradientUnits="userSpaceOnUse"
+            x1="0"
+            y1="0"
+            x2="0"
+            y2={CHART_HEIGHT}
+          >
+            <stop
+              offset={zeroOffset}
+              stopColor={theme.reportsChartFill}
+              stopOpacity={0.16}
+            />
+            <stop
+              offset={zeroOffset}
+              stopColor={theme.errorBorder}
+              stopOpacity={0.12}
+            />
+          </linearGradient>
+          <linearGradient
+            id={`${id}-line`}
+            gradientUnits="userSpaceOnUse"
+            x1="0"
+            y1="0"
+            x2="0"
+            y2={CHART_HEIGHT}
+          >
+            <stop offset={zeroOffset} stopColor={theme.reportsChartFill} />
+            <stop offset={zeroOffset} stopColor={theme.errorBorder} />
+          </linearGradient>
+        </defs>
+        {[40, 130].map(gy => (
+          <line
+            key={gy}
+            x1="0"
+            x2="1000"
+            y1={gy}
+            y2={gy}
+            stroke={theme.pageTextSubdued}
+            strokeOpacity="0.35"
+            strokeDasharray="1 5"
+            vectorEffect="non-scaling-stroke"
+          />
+        ))}
+        <path d={band} fill={`url(#${id}-band)`} />
+        <line
+          x1="0"
+          x2="1000"
+          y1={zeroY}
+          y2={zeroY}
+          stroke={theme.pageText}
+          strokeWidth="1"
+          vectorEffect="non-scaling-stroke"
+        />
+        <path
+          d={path(bands.map(b => b.schedules))}
+          fill="none"
+          stroke={theme.pageTextLight}
+          strokeWidth="2"
+          strokeDasharray="1 5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          vectorEffect="non-scaling-stroke"
+        />
+        <path
+          d={path(bands.map(b => b.expected))}
+          fill="none"
+          stroke={`url(#${id}-line)`}
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          vectorEffect="non-scaling-stroke"
+        />
+      </svg>
+
+      {/* drawn in HTML so the marks stay round when the SVG stretches */}
+      {crossX != null && (
+        <>
+          <Dot
+            left={pct(crossX)}
+            top={zeroY}
+            size={24}
+            color={theme.errorBorder}
+            opacity={0.18}
+          />
+          <Dot
+            left={pct(crossX)}
+            top={zeroY}
+            size={10}
+            color={theme.errorBorder}
+            ring
+          />
+        </>
+      )}
+      <View
+        style={{
+          position: 'absolute',
+          top: 0,
+          bottom: 0,
+          width: 1,
+          left: pct(x(shownIndex)),
+          backgroundColor: theme.tableBorderHover,
+          opacity: scrubbing ? 1 : 0,
+          pointerEvents: 'none',
+        }}
+      />
+      <Dot
+        left={pct(x(shownIndex))}
+        top={y(shown.expected)}
+        size={11}
+        color={dotFill}
+        ring
+      />
+    </View>
+  );
+}
+
+function Dot({
+  left,
+  top,
+  size,
+  color,
+  opacity = 1,
+  ring = false,
+}: {
+  left: string;
+  top: number;
+  size: number;
+  color: string;
+  opacity?: number;
+  ring?: boolean;
+}) {
+  return (
+    <View
+      style={{
+        position: 'absolute',
+        left,
+        top,
+        width: size,
+        height: size,
+        borderRadius: 999,
+        backgroundColor: color,
+        opacity,
+        boxShadow: ring ? `0 0 0 2px ${theme.surfaceSunken}` : undefined,
+        transform: `translate(-${size / 2}px, -${size / 2}px)`,
+        pointerEvents: 'none',
+      }}
+    />
+  );
+}
+
+/**
+ * Month-end landings: each row's worst→best range as a washed capsule on a
+ * shared scale, an ink tick at expected, then the three figures.
+ */
+function MonthLands({
+  ends,
+  narrow,
+  format,
+}: {
+  ends: BandPoint[];
+  narrow: boolean;
+  format: (v: number) => string;
+}) {
+  const { t } = useTranslation();
+  const lo = Math.min(0, ...ends.map(e => e.worst));
+  const hi = Math.max(0, ...ends.map(e => e.best));
+  const pad = (hi - lo) * 0.05 || 1;
+  const pos = (v: number) => ((v - (lo - pad)) / (hi - lo + 2 * pad)) * 100;
+  const figureWidth = narrow ? 72 : 120;
+  const figure = {
+    ...styles.tnum,
+    width: figureWidth,
+    flexShrink: 0,
+    textAlign: 'right' as const,
+    whiteSpace: 'nowrap' as const,
+  };
+  const gap = narrow ? 10 : 22;
+  const monthWidth = narrow ? 44 : 200;
+
+  return (
+    <View style={{ flexShrink: 0 }}>
+      <SectionHeader label={t('Where each month lands')} />
+      <View
+        aria-hidden="true"
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap,
+          padding: '12px 4px 0',
+        }}
+      >
+        <View style={{ width: monthWidth, flexShrink: 0 }} />
+        <View style={{ flex: 1, minWidth: 0 }} />
+        {[t('Worst'), t('Expected'), t('Best')].map(h => (
+          <Text key={h} style={{ ...columnLabel, ...figure }}>
+            {h}
+          </Text>
+        ))}
+      </View>
+      {ends.map(e => {
+        const left = pos(e.worst);
+        const fill =
+          e.expected < 0 ? theme.errorBorder : theme.reportsChartFill;
+        const month = e.date.slice(0, 7);
+        return (
+          <View
+            key={e.date}
+            role="group"
+            aria-label={t(
+              '{{month}}: worst {{worst}}, expected {{expected}}, best {{best}}',
+              {
+                month: monthUtils.format(month, 'MMMM yyyy'),
+                worst: format(e.worst),
+                expected: format(e.expected),
+                best: format(e.best),
+              },
+            )}
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap,
+              padding: narrow ? '14px 0' : '18px 4px',
+              borderBottom: `1px solid ${theme.tableBorder}`,
+            }}
+          >
+            <Text
+              style={{
+                width: monthWidth,
+                flexShrink: 0,
+                fontSize: narrow ? 15 : 17,
+                fontWeight: 600,
+                letterSpacing: '-0.018em',
+                whiteSpace: 'nowrap',
+                color: theme.pageText,
+              }}
+            >
+              {monthUtils.format(month, narrow ? 'MMM' : 'MMMM yyyy')}
+            </Text>
+            <View
+              style={{
+                flex: 1,
+                minWidth: 0,
+                position: 'relative',
+                height: 10,
+                borderRadius: 999,
+                backgroundColor: theme.surfaceSunken,
+              }}
+            >
+              <View
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  height: 10,
+                  borderRadius: 999,
+                  left: `${left}%`,
+                  width: `${Math.max(0, pos(e.best) - left)}%`,
+                  backgroundColor: wash(fill, 35, theme.surfaceSunken),
+                }}
+              />
+              <View
+                style={{
+                  position: 'absolute',
+                  top: -3,
+                  width: 3,
+                  height: 16,
+                  borderRadius: 2,
+                  backgroundColor: theme.pageText,
+                  left: `${pos(e.expected)}%`,
+                  transform: 'translateX(-1.5px)',
+                }}
+              />
+            </View>
+            <Text
+              style={{
+                ...figure,
+                fontSize: 15,
+                fontWeight: 500,
+                color: e.worst < 0 ? theme.errorText : theme.pageTextSubdued,
+              }}
+            >
+              {format(e.worst)}
+            </Text>
+            <Text
+              style={{
+                ...figure,
+                fontSize: narrow ? 15 : 17,
+                fontWeight: 600,
+                letterSpacing: '-0.02em',
+                color: e.expected < 0 ? theme.errorText : theme.pageText,
+              }}
+            >
+              {format(e.expected)}
+            </Text>
+            <Text
+              style={{
+                ...figure,
+                fontSize: 15,
+                fontWeight: 500,
+                color: theme.pageTextSubdued,
+              }}
+            >
+              {format(e.best)}
+            </Text>
+          </View>
+        );
+      })}
+    </View>
   );
 }

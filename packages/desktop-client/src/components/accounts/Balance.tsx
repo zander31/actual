@@ -38,15 +38,24 @@ function DetailedBalance({
   return (
     <Text
       style={{
-        borderRadius: 4,
-        padding: '4px 6px',
-        color: theme.pillText,
-        backgroundColor: theme.pillBackground,
+        // fork: a neutral capsule under the hero figure
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 4,
+        height: 28,
+        padding: '0 12px',
+        borderRadius: 999,
+        fontSize: 13,
+        fontWeight: 500,
+        letterSpacing: '-0.008em',
+        whiteSpace: 'nowrap',
+        color: theme.pageTextLight,
+        backgroundColor: theme.surfaceSunken,
       }}
     >
       {name}{' '}
       <PrivacyFilter>
-        <FinancialText style={{ fontWeight: 600 }}>
+        <FinancialText style={{ fontWeight: 600, color: theme.pageText }}>
           {!isExactBalance && '~ '}
           {format(balance, 'financial')}
         </FinancialText>
@@ -265,5 +274,41 @@ export function Balances({
       )}
       {isFiltered && <FilteredBalance filteredAmount={filteredAmount} />}
     </View>
+  );
+}
+
+type BalanceChipsProps = {
+  balanceQuery: { name: `balance-query-${string}`; query: Query };
+  showExtraBalances: boolean;
+  account?: AccountEntity;
+  isFiltered: boolean;
+  filteredAmount?: number | null;
+};
+
+/**
+ * Fork: the secondary balances without the main figure, for the register's
+ * instrument hero (which draws the figure itself). Returns null when empty.
+ */
+export function BalanceChips({
+  balanceQuery,
+  showExtraBalances,
+  account,
+  isFiltered,
+  filteredAmount,
+}: BalanceChipsProps) {
+  const selectedItems = useSelectedItems();
+
+  if (!showExtraBalances && selectedItems.size === 0 && !isFiltered) {
+    return null;
+  }
+
+  return (
+    <>
+      {showExtraBalances && <MoreBalances balanceQuery={balanceQuery} />}
+      {selectedItems.size > 0 && (
+        <SelectedBalance selectedItems={selectedItems} account={account} />
+      )}
+      {isFiltered && <FilteredBalance filteredAmount={filteredAmount} />}
+    </>
   );
 }

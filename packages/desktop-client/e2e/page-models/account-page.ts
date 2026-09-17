@@ -36,7 +36,7 @@ export class AccountPage {
     this.accountName = this.page.getByTestId('account-name');
     this.accountBalance = this.page.getByTestId('account-balance');
     this.addNewTransactionButton = this.page.getByRole('button', {
-      name: 'Add New',
+      name: 'Add transaction',
     });
     this.newTransactionRow = this.page
       .getByTestId('new-transaction')

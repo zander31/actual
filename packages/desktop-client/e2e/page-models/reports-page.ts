@@ -104,16 +104,12 @@ export class ReportsPage {
   }
 
   async addWidget(widgetName: string) {
-    await this.pageContent
-      .getByRole('button', { name: 'Add new widget' })
-      .click();
+    await this.pageContent.getByRole('button', { name: 'Add widget' }).click();
     await this.page.getByRole('button', { name: widgetName }).click();
   }
 
   async goToCustomReportPage() {
-    await this.pageContent
-      .getByRole('button', { name: 'Add new widget' })
-      .click();
+    await this.pageContent.getByRole('button', { name: 'Add widget' }).click();
     await this.page.getByRole('button', { name: 'New custom report' }).click();
     return new CustomReportPage(this.page);
   }

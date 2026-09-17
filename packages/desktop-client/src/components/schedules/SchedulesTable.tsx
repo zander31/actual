@@ -13,13 +13,20 @@ import { View } from '@actual-app/components/view';
 import { format as monthUtilFormat } from '@actual-app/core/shared/months';
 import { getNormalisedString } from '@actual-app/core/shared/normalisation';
 import { getScheduledAmount } from '@actual-app/core/shared/schedules';
-import type { ScheduleStatuses } from '@actual-app/core/shared/schedules';
+import type {
+  ScheduleStatuses,
+  ScheduleStatusType,
+} from '@actual-app/core/shared/schedules';
 import type { ScheduleEntity } from '@actual-app/core/types/models';
+import type { TFunction } from 'i18next';
 
+import { ScheduleInstrumentTable } from '#components/custom/SchedulesInstrument';
+import type { Charge, Drift } from '#components/custom/SchedulesInstrument';
 import { FinancialText } from '#components/FinancialText';
 import { PrivacyFilter } from '#components/PrivacyFilter';
 import { Cell, Field, Row, Table, TableHeader } from '#components/table';
 import { DisplayId } from '#components/util/DisplayId';
+import type { ContextMenuItem } from '#contextmenu/types';
 import { useAccounts } from '#hooks/useAccounts';
 import { useContextMenu } from '#hooks/useContextMenu';
 import { useDateFormat } from '#hooks/useDateFormat';
@@ -36,6 +43,10 @@ type SchedulesTableProps = {
   onSelect: (id: ScheduleEntity['id']) => void;
   style: CSSProperties;
   tableStyle?: CSSProperties;
+  /** Fork: linked charges per schedule, for the instrument rows. */
+  charges?: Map<string, Charge[]>;
+  /** Fork: schedules whose recent charges have drifted off their amount. */
+  drifts?: Map<string, Drift>;
 } & (
   | {
       minimal: true;
@@ -146,6 +157,49 @@ export function ScheduleAmountCell({
   );
 }
 
+function scheduleMenuItems(
+  t: TFunction,
+  schedule: ScheduleEntity,
+  status: ScheduleStatusType | undefined,
+  onAction: (actionName: ScheduleItemAction, id: ScheduleEntity['id']) => void,
+): ContextMenuItem[] {
+  return [
+    {
+      name: 'post-transaction',
+      text: t('Post transaction'),
+      onClick: () => onAction('post-transaction', schedule.id),
+    },
+    {
+      name: 'post-transaction-today',
+      text: t('Post transaction today'),
+      onClick: () => onAction('post-transaction-today', schedule.id),
+    },
+    {
+      name: 'restart',
+      text: t('Restart'),
+      onClick: () => onAction('restart', schedule.id),
+      hidden: status !== 'completed',
+    },
+    {
+      name: 'skip',
+      text: t('Skip next scheduled date'),
+      onClick: () => onAction('skip', schedule.id),
+      hidden: status === 'completed',
+    },
+    {
+      name: 'complete',
+      text: t('Complete'),
+      onClick: () => onAction('complete', schedule.id),
+      hidden: status === 'completed',
+    },
+    {
+      name: 'delete',
+      text: t('Delete'),
+      onClick: () => onAction('delete', schedule.id),
+    },
+  ];
+}
+
 function ScheduleRow({
   schedule,
   onAction,
@@ -168,43 +222,7 @@ function ScheduleRow({
   const status = statuses.get(schedule.id);
   useContextMenu({
     triggerRef: rowRef,
-    items: !minimal
-      ? [
-          {
-            name: 'post-transaction',
-            text: t('Post transaction'),
-            onClick: () => onAction('post-transaction', schedule.id),
-          },
-          {
-            name: 'post-transaction-today',
-            text: t('Post transaction today'),
-            onClick: () => onAction('post-transaction-today', schedule.id),
-          },
-          {
-            name: 'restart',
-            text: t('Restart'),
-            onClick: () => onAction('restart', schedule.id),
-            hidden: status !== 'completed',
-          },
-          {
-            name: 'skip',
-            text: t('Skip next scheduled date'),
-            onClick: () => onAction('skip', schedule.id),
-            hidden: status === 'completed',
-          },
-          {
-            name: 'complete',
-            text: t('Complete'),
-            onClick: () => onAction('complete', schedule.id),
-            hidden: status === 'completed',
-          },
-          {
-            name: 'delete',
-            text: t('Delete'),
-            onClick: () => onAction('delete', schedule.id),
-          },
-        ]
-      : [],
+    items: !minimal ? scheduleMenuItems(t, schedule, status, onAction) : [],
   });
 
   return (
@@ -302,6 +320,8 @@ export function SchedulesTable({
   onSelect,
   onAction,
   tableStyle,
+  charges,
+  drifts,
 }: SchedulesTableProps) {
   const { t } = useTranslation();
   const format = useFormat();
@@ -365,6 +385,26 @@ export function SchedulesTable({
 
     return [...unCompletedSchedules, { id: 'show-completed' }];
   }, [filteredSchedules, showCompleted, allowCompleted]);
+
+  // Fork: the full-page table renders as instrument rows; the minimal pickers
+  // (discover, link, rule editor) keep the dense upstream table.
+  if (!minimal) {
+    return (
+      <ScheduleInstrumentTable
+        items={items}
+        statuses={statuses}
+        charges={charges ?? new Map()}
+        drifts={drifts ?? new Map()}
+        isLoading={isLoading}
+        emptyText={filter ? t('No matching schedules') : t('No schedules')}
+        onSelect={onSelect}
+        onShowCompleted={() => setShowCompleted(true)}
+        menuItems={(schedule, status) =>
+          scheduleMenuItems(t, schedule, status, onAction)
+        }
+      />
+    );
+  }
 
   function renderItem({ item }: { item: SchedulesTableItem }) {
     if (item.id === 'show-completed') {

@@ -1,6 +1,6 @@
 // @ts-strict-ignore
 import React, { useState } from 'react';
-import type { CSSProperties } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import {
@@ -18,12 +18,25 @@ import { useResizeObserver } from '#hooks/useResizeObserver';
 
 import type { MonthBounds } from './MonthsContext';
 
+// The strip fills its width with months, but the steppers at either end are not
+// months: counting without them packed the run past the right edge.
+const MONTH_CELL_WIDTH = 44;
+const STEPPER_WIDTH = 170;
+// The instrument's strip: separate capsules with a gap, steppers after the run.
+const STRIP_CELL_WIDTH = 62;
+const STRIP_STEPPER_WIDTH = 130;
+
 type MonthPickerProps = {
   startMonth: string;
   numDisplayed: number;
   monthBounds: MonthBounds;
   style: CSSProperties;
   onSelect: (month: string) => void;
+  /**
+   * `strip` sets each month as its own capsule, left-aligned, with today and
+   * the steppers after the run (the envelope budget's instrument layout).
+   */
+  variant?: 'default' | 'strip';
 };
 
 export const MonthPicker = ({
@@ -32,7 +45,9 @@ export const MonthPicker = ({
   monthBounds,
   style,
   onSelect,
+  variant = 'default',
 }: MonthPickerProps) => {
+  const isStrip = variant === 'strip';
   const locale = useLocale();
   const { t } = useTranslation();
   const [hoverId, setHoverId] = useState(null);
@@ -65,9 +80,69 @@ export const MonthPicker = ({
   const containerRef = useResizeObserver(rect => {
     setSize(rect.width <= 400 ? 'small' : 'big');
     setTargetMonthCount(
-      Math.min(Math.max(Math.floor(rect.width / 50), 12), 24),
+      isStrip
+        ? Math.min(
+            Math.max(
+              Math.floor((rect.width - STRIP_STEPPER_WIDTH) / STRIP_CELL_WIDTH),
+              3,
+            ),
+            24,
+          )
+        : Math.min(
+            Math.max(
+              Math.floor((rect.width - STEPPER_WIDTH) / MONTH_CELL_WIDTH),
+              12,
+            ),
+            24,
+          ),
     );
   });
+
+  const stepper = (
+    onPress: () => void,
+    title: string,
+    icon: ReactNode,
+    side: 'left' | 'right',
+  ) => (
+    <Link
+      variant="button"
+      buttonVariant="bare"
+      onPress={onPress}
+      aria-label={title}
+      style={{
+        padding: 0,
+        width: isStrip ? 32 : 30,
+        height: isStrip ? 32 : 30,
+        borderRadius: 999,
+        ...(!isStrip && side === 'left' && { marginRight: 10 }),
+        ...(!isStrip && side === 'right' && { marginLeft: 10 }),
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: theme.surfaceSunken,
+      }}
+    >
+      <View title={title}>{icon}</View>
+    </Link>
+  );
+  const iconStyle = { width: 16, height: 16 };
+  const todayButton = stepper(
+    () => onSelect(currentMonth),
+    t('Today'),
+    <SvgCalendar style={iconStyle} />,
+    'left',
+  );
+  const prevButton = stepper(
+    () => onSelect(monthUtils.prevMonth(startMonth)),
+    t('Previous month'),
+    <SvgCheveronLeft style={iconStyle} />,
+    'left',
+  );
+  const nextButton = stepper(
+    () => onSelect(monthUtils.nextMonth(startMonth)),
+    t('Next month'),
+    <SvgCheveronRight style={iconStyle} />,
+    'right',
+  );
 
   const yearHeadersShown = [];
 
@@ -86,57 +161,12 @@ export const MonthPicker = ({
           flexDirection: 'row',
           flex: 1,
           alignItems: 'center',
-          justifyContent: 'center',
+          justifyContent: isStrip ? 'flex-start' : 'center',
+          ...(isStrip && { gap: 6 }),
         }}
       >
-        <Link
-          variant="button"
-          buttonVariant="bare"
-          onPress={() => onSelect(currentMonth)}
-          style={{
-            padding: 0,
-            width: 30,
-            height: 30,
-            borderRadius: 999,
-            marginRight: 10,
-            alignItems: 'center',
-            justifyContent: 'center',
-            backgroundColor: theme.surfaceSunken,
-          }}
-        >
-          <View title={t('Today')}>
-            <SvgCalendar
-              style={{
-                width: 16,
-                height: 16,
-              }}
-            />
-          </View>
-        </Link>
-        <Link
-          variant="button"
-          buttonVariant="bare"
-          onPress={() => onSelect(monthUtils.prevMonth(startMonth))}
-          style={{
-            padding: 0,
-            width: 30,
-            height: 30,
-            borderRadius: 999,
-            marginRight: 10,
-            alignItems: 'center',
-            justifyContent: 'center',
-            backgroundColor: theme.surfaceSunken,
-          }}
-        >
-          <View title={t('Previous month')}>
-            <SvgCheveronLeft
-              style={{
-                width: 16,
-                height: 16,
-              }}
-            />
-          </View>
-        </Link>
+        {!isStrip && todayButton}
+        {!isStrip && prevButton}
         {range.map((month, idx) => {
           const monthName = monthUtils.format(month, 'MMM', locale);
           const selected =
@@ -231,6 +261,35 @@ export const MonthPicker = ({
                   borderBottomRightRadius: 999,
                 }),
                 ...(current && !selected && { color: theme.pageText }),
+                ...(isStrip && {
+                  // each month its own capsule: no joined run, no dimming
+                  height: 32,
+                  width: 'auto',
+                  minWidth: size === 'big' ? 44 : 32,
+                  padding: size === 'big' ? '0 15px' : '0 10px',
+                  borderRadius: 999,
+                  filter: 'none',
+                  cursor: 'pointer',
+                  fontWeight: selected ? 650 : 500,
+                  backgroundColor: selected
+                    ? theme.buttonPrimaryBackground
+                    : hovered
+                      ? theme.surfaceSunken
+                      : 'transparent',
+                  ':focus-visible': {
+                    outline: `2px solid ${theme.formInputBorderSelected}`,
+                    outlineOffset: 2,
+                  },
+                }),
+              }}
+              role="button"
+              tabIndex={0}
+              aria-pressed={selected}
+              onKeyDown={e => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  onSelect(month);
+                }
               }}
               onClick={() => onSelect(month)}
               onMouseEnter={() => setHoverId(idx)}
@@ -258,32 +317,27 @@ export const MonthPicker = ({
             </View>
           );
         })}
-        <Link
-          variant="button"
-          buttonVariant="bare"
-          onPress={() => onSelect(monthUtils.nextMonth(startMonth))}
-          style={{
-            padding: 0,
-            width: 30,
-            height: 30,
-            borderRadius: 999,
-            marginLeft: 10,
-            alignItems: 'center',
-            justifyContent: 'center',
-            backgroundColor: theme.surfaceSunken,
-          }}
-        >
-          <View title={t('Next month')}>
-            <SvgCheveronRight
-              style={{
-                width: 16,
-                height: 16,
-              }}
-            />
+        {isStrip ? (
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 6,
+              marginLeft: 'auto',
+              paddingLeft: 10,
+            }}
+          >
+            {todayButton}
+            {prevButton}
+            {nextButton}
           </View>
-        </Link>
-        {/*Keep range centered*/}
-        <span style={{ width: 40, marginLeft: 10 }} />
+        ) : (
+          <>
+            {nextButton}
+            {/*Keep range centered*/}
+            <span style={{ width: 40, marginLeft: 10 }} />
+          </>
+        )}
       </View>
     </View>
   );

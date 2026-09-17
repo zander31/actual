@@ -2103,7 +2103,7 @@ export function Account() {
             hideFraction={String(hideFraction) === 'true'}
             expandSplits={expandSplits}
             showBalances={showBalances}
-            showNetWorthChart={String(showNetWorthChart) === 'true'}
+            showNetWorthChart={String(showNetWorthChart) !== 'false'}
             setShowNetWorthChart={val => setShowNetWorthChart(String(val))}
             showCleared={showCleared}
             showReconciled={String(hideReconciled) !== 'true'}

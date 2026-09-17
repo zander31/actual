@@ -1,4 +1,8 @@
 :root {
+  /* the highlight chip: lime in every theme, so its text stays ink */
+  --color-highlightBackground: var(--palette-lime);
+  --color-highlightBackgroundHover: var(--palette-lime600);
+  --color-highlightText: var(--palette-ink900);
   --color-pageBackground: var(--palette-navy100);
   --color-pageBackgroundModalActive: var(--palette-navy200);
   --color-pageBackgroundTopLeft: var(--palette-navy100);
