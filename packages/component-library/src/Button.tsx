@@ -90,14 +90,13 @@ const _getBorder = (
 const _getPadding = (variant: ButtonVariant): string => {
   switch (variant) {
     case 'bare':
-      return '5px';
+      return '5px 8px';
     default:
-      return '5px 10px';
+      return '6px 14px';
   }
 };
 
 const _getHoveredStyles = (variant: ButtonVariant): CSSProperties => ({
-  ...(variant !== 'bare' && styles.shadow),
   backgroundColor: backgroundColorHover[variant],
   color: textColorHover[variant],
   cursor: 'pointer',
@@ -112,12 +111,8 @@ const _getActiveStyles = (
       return { backgroundColor: theme.buttonBareBackgroundActive };
     default:
       return {
-        transform: bounce ? 'translateY(1px)' : undefined,
-        boxShadow: `0 1px 4px 0 ${
-          variant === 'primary'
-            ? theme.buttonPrimaryShadow
-            : theme.buttonNormalShadow
-        }`,
+        transform: bounce ? 'scale(0.97)' : undefined,
+        boxShadow: 'none',
         transition: 'none',
       };
   }
@@ -148,11 +143,12 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
           margin: 0,
           overflow: 'hidden',
           display: 'flex',
-          borderRadius: 4,
+          borderRadius: 999,
           backgroundColor: backgroundColor[variantWithDisabled],
           border: _getBorder(variant, variantWithDisabled),
           color: textColor[variantWithDisabled],
-          transition: 'box-shadow .25s',
+          transition:
+            'background-color .15s ease, color .15s ease, transform .12s cubic-bezier(0.2, 0, 0, 1)',
           WebkitAppRegion: 'no-drag',
           ...styles.smallText,
           '&[data-hovered]': _getHoveredStyles(variant),

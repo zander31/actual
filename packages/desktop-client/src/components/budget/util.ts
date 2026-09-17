@@ -1,5 +1,4 @@
 // @ts-strict-ignore
-import { styles } from '@actual-app/components/styles';
 import type { CSSProperties } from '@actual-app/components/styles';
 import { theme } from '@actual-app/components/theme';
 import { send } from '@actual-app/core/platform/client/connection';
@@ -20,6 +19,27 @@ import type { DropPosition } from '#components/sort';
 import type { useSpreadsheet } from '#hooks/useSpreadsheet';
 
 import { getValidMonthBounds } from './MonthsContext';
+
+// The budget surface's column geometry.
+//
+// Upstream sized these against a 240px sidebar eating the left of the window.
+// This fork retired that sidebar for the top nav, so the table *is* the page and
+// the columns take the room it freed: names get space to be read, and a single
+// month spreads into a card wide enough for its tiles to sit in one row.
+const CATEGORY_COLUMN_WIDTH = 280;
+const CATEGORY_COLUMN_EXPAND_STEP = 100;
+const MONTH_COLUMN_WIDTH = 500;
+// One or two months leave slack a 500px column cannot spend. Past that the page
+// would outrun the window, so the column tightens back to upstream's measure.
+const MONTH_COLUMN_WIDTH_ROOMY = 640;
+
+export function getCategoryColumnWidth(expandedState: number) {
+  return CATEGORY_COLUMN_WIDTH + CATEGORY_COLUMN_EXPAND_STEP * expandedState;
+}
+
+export function getMonthColumnWidth(numMonths: number) {
+  return numMonths <= 2 ? MONTH_COLUMN_WIDTH_ROOMY : MONTH_COLUMN_WIDTH;
+}
 
 export function addToBeBudgetedGroup(groups: CategoryGroupEntity[]) {
   return [
@@ -174,8 +194,22 @@ export function findSortUp<T extends { id: string }>(
   }
 }
 
+let scrollbarWidth: number | null = null;
+
 export function getScrollbarWidth() {
-  return Math.max(styles.scrollbarWidth - 2, 0);
+  // The header row and the month strip have to stop exactly where the scrolled
+  // rows stop, or the column totals sit off the figures beneath them. A guessed
+  // width was 4px out, which is enough to see in a column of right-aligned
+  // money; measure the real one once instead. Overlay scrollbars measure 0.
+  if (scrollbarWidth == null) {
+    const probe = document.createElement('div');
+    probe.style.cssText =
+      'position:absolute;visibility:hidden;overflow:scroll;width:100px;height:100px';
+    document.body.appendChild(probe);
+    scrollbarWidth = probe.offsetWidth - probe.clientWidth;
+    probe.remove();
+  }
+  return scrollbarWidth;
 }
 
 export async function prewarmMonth(

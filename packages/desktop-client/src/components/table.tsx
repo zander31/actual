@@ -58,7 +58,7 @@ import {
   mergeConditionalPrivacyFilterProps,
 } from './PrivacyFilter';
 
-export const ROW_HEIGHT = 32;
+export const ROW_HEIGHT = 38;
 
 function fireBlur(onBlur, e) {
   if (document.hasFocus()) {

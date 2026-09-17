@@ -1,4 +1,8 @@
 :root {
+  /* the highlight chip: lime in every theme, so its text stays ink */
+  --color-highlightBackground: var(--palette-lime);
+  --color-highlightBackgroundHover: var(--palette-lime600);
+  --color-highlightText: var(--palette-ink900);
   --color-pageBackground: var(--palette-gray900);
   --color-pageBackgroundModalActive: var(--palette-gray800);
   --color-pageBackgroundTopLeft: var(--palette-navy800);
@@ -251,4 +255,53 @@
   --color-chartQual7: var(--palette-chartQual7);
   --color-chartQual8: var(--palette-chartQual8);
   --color-chartQual9: var(--palette-chartQual9);
+}
+
+/* ── Robinhood dark — same system, inverted ──────────────────────────────── */
+:root {
+  --color-pageBackground: #000000;
+  --color-surfaceSunken: #101215;
+  --color-pageBackgroundModalActive: #141416;
+  --color-pageBackgroundTopLeft: #000000;
+  --color-pageBackgroundBottomRight: #0c0c0e;
+  --color-pageText: #f2f2f3;
+  --color-pageTextLight: #a9abb0;
+  --color-pageTextSubdued: #8e9095;
+  --color-pageTextPositive: var(--palette-purple500);
+  --color-pageTextLink: var(--palette-purple500);
+
+  --color-sidebarBackground: #000000;
+  --color-sidebarItemText: #a9abb0;
+  --color-sidebarItemTextSelected: var(--palette-purple500);
+  --color-sidebarItemBackgroundHover: #141416;
+
+  --color-tableBackground: #000000;
+  --color-tableRowBackgroundAlternate: #000000;
+  --color-tableRowBackgroundHover: #141416;
+  --color-tableHeaderBackground: #000000;
+  --color-tableBorder: #232327;
+  --color-tableText: #f2f2f3;
+
+  /* on black the brand steps clear AA on their own, so figures use them */
+  --color-numberPositive: var(--palette-purple500);
+  --color-numberNegative: var(--palette-red400);
+
+  --color-cardBackground: #141416;
+  --color-cardBorder: #232327;
+  --color-modalBackground: #141416;
+  --color-modalBorder: #232327;
+  --color-menuBackground: #141416;
+  --color-menuItemBackground: #141416;
+  --color-menuItemBackgroundHover: #232327;
+  --color-menuBorder: #232327;
+  --color-buttonPrimaryBackground: var(--palette-white);
+  --color-buttonPrimaryBackgroundHover: #e8e8e9;
+  --color-buttonPrimaryText: #000000;
+  --color-buttonNormalBackground: #141416;
+  --color-buttonNormalBorder: #2e2e33;
+  --color-formInputBackground: #141416;
+  --color-formInputBorder: #2e2e33;
+  --color-mobileHeaderBackground: #000000;
+  --color-mobileNavBackground: #000000;
+  --color-mobileViewTheme: #000000;
 }

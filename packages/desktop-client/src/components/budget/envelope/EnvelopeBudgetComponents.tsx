@@ -17,7 +17,15 @@ import * as monthUtils from '@actual-app/core/shared/months';
 import { css } from '@emotion/css';
 
 import { BalanceWithCarryover } from '#components/budget/BalanceWithCarryover';
+import { useIsInstrumentMonth } from '#components/budget/MonthsContext';
 import { makeAmountGrey } from '#components/budget/util';
+import {
+  EnvelopeChip,
+  EnvelopeMeter,
+  SpendHistory,
+  useEnvelopeState,
+} from '#components/custom/EnvelopeRowParts';
+import { columnLabel } from '#components/custom/primitives';
 import { NotesButton } from '#components/NotesButton';
 import { CellValue, CellValueText } from '#components/spreadsheet/CellValue';
 import { Field, Row, SheetCell } from '#components/table';
@@ -68,12 +76,92 @@ const headerLabelStyle: CSSProperties = {
   textAlign: 'right',
 };
 
+// The instrument's columns, right of the history line and the bar. The budget
+// column holds the notes and menu controls beside the editable figure.
+const INSTRUMENT_HISTORY_WIDTH = 80;
+const INSTRUMENT_BUDGET_WIDTH = 164;
+const INSTRUMENT_FIGURE_WIDTH = 108;
+const INSTRUMENT_STATUS_WIDTH = 112;
+
+const instrumentSpent: CSSProperties = {
+  fontSize: 15,
+  fontWeight: 500,
+  color: theme.pageTextLight,
+};
+
+const instrumentBalance: CSSProperties = {
+  fontSize: 17,
+  fontWeight: 600,
+  letterSpacing: '-0.02em',
+};
+
 const cellStyle: CSSProperties = {
   color: theme.tableHeaderText,
   fontWeight: 600,
 };
 
 export const BudgetTotalsMonth = memo(function BudgetTotalsMonth() {
+  const isInstrument = useIsInstrumentMonth();
+  if (isInstrument) {
+    // One month: the bar above already reads out the totals, so the header
+    // names the columns and nothing else.
+    const label: CSSProperties = { ...columnLabel, whiteSpace: 'nowrap' };
+    return (
+      <View
+        style={{
+          flex: 1,
+          flexDirection: 'row',
+          alignItems: 'center',
+          paddingTop: 10,
+          paddingBottom: 9,
+          backgroundColor: theme.budgetCurrentMonth,
+        }}
+      >
+        <Text
+          style={{
+            ...label,
+            width: INSTRUMENT_HISTORY_WIDTH,
+            textAlign: 'center',
+          }}
+        >
+          <Trans>6 mo</Trans>
+        </Text>
+        <View style={{ flex: 1 }} />
+        <Text
+          style={{
+            ...label,
+            width: INSTRUMENT_BUDGET_WIDTH,
+            textAlign: 'right',
+            paddingRight: 9,
+          }}
+        >
+          <Trans>Budgeted</Trans>
+        </Text>
+        <Text
+          style={{
+            ...label,
+            width: INSTRUMENT_FIGURE_WIDTH,
+            textAlign: 'right',
+            paddingRight: 5,
+          }}
+        >
+          <Trans>Spent</Trans>
+        </Text>
+        <Text
+          style={{
+            ...label,
+            width: INSTRUMENT_FIGURE_WIDTH,
+            textAlign: 'right',
+            paddingRight: 5,
+          }}
+        >
+          <Trans>Balance</Trans>
+        </Text>
+        <View style={{ width: INSTRUMENT_STATUS_WIDTH }} />
+      </View>
+    );
+  }
+
   return (
     <View
       style={{
@@ -143,6 +231,11 @@ export const ExpenseGroupMonth = memo(function ExpenseGroupMonth({
   group,
 }: CategoryGroupMonthProps) {
   const { id } = group;
+  const isInstrument = useIsInstrumentMonth();
+  const budgeted = useEnvelopeSheetValue(envelopeBudget.groupBudgeted(id));
+  const spent = useEnvelopeSheetValue(envelopeBudget.groupSumAmount(id));
+  const balance = useEnvelopeSheetValue(envelopeBudget.groupBalance(id));
+  const state = useEnvelopeState(budgeted, spent, balance);
 
   return (
     <View
@@ -154,11 +247,26 @@ export const ExpenseGroupMonth = memo(function ExpenseGroupMonth({
           : theme.budgetHeaderOtherMonth,
       }}
     >
+      {isInstrument && (
+        <>
+          <InstrumentHistoryField month={month} id={id} isGroup />
+          <InstrumentMeterField percent={state.pct} color={state.fill} />
+        </>
+      )}
       <EnvelopeSheetCell
         name="budgeted"
-        width="flex"
+        width={isInstrument ? INSTRUMENT_BUDGET_WIDTH : 'flex'}
         textAlign="right"
-        style={{ fontWeight: 600, ...styles.tnum }}
+        style={{
+          fontWeight: 600,
+          ...styles.tnum,
+          ...(isInstrument && {
+            fontSize: 15,
+            fontWeight: 650,
+            letterSpacing: '-0.014em',
+            paddingRight: 9,
+          }),
+        }}
         valueProps={{
           binding: envelopeBudget.groupBudgeted(id),
           type: 'financial',
@@ -166,9 +274,13 @@ export const ExpenseGroupMonth = memo(function ExpenseGroupMonth({
       />
       <EnvelopeSheetCell
         name="spent"
-        width="flex"
+        width={isInstrument ? INSTRUMENT_FIGURE_WIDTH : 'flex'}
         textAlign="right"
-        style={{ fontWeight: 600, ...styles.tnum }}
+        style={{
+          fontWeight: 600,
+          ...styles.tnum,
+          ...(isInstrument && instrumentSpent),
+        }}
         valueProps={{
           binding: envelopeBudget.groupSumAmount(id),
           type: 'financial',
@@ -176,18 +288,24 @@ export const ExpenseGroupMonth = memo(function ExpenseGroupMonth({
       />
       <EnvelopeSheetCell
         name="balance"
-        width="flex"
+        width={isInstrument ? INSTRUMENT_FIGURE_WIDTH : 'flex'}
         textAlign="right"
         style={{
           fontWeight: 600,
-          paddingRight: styles.monthRightPadding,
+          paddingRight: isInstrument ? 0 : styles.monthRightPadding,
           ...styles.tnum,
+          ...(isInstrument && instrumentBalance),
         }}
         valueProps={{
           binding: envelopeBudget.groupBalance(id),
           type: 'financial',
         }}
       />
+      {isInstrument && (
+        <InstrumentStatusField tone={state.tone}>
+          {state.label}
+        </InstrumentStatusField>
+      )}
     </View>
   );
 });
@@ -258,6 +376,18 @@ export const ExpenseCategoryMonth = memo(function ExpenseCategoryMonth({
 
   const showScheduleIndicator = schedule && scheduleStatus;
 
+  const isInstrument = useIsInstrumentMonth();
+  const budgetedValue = useEnvelopeSheetValue(
+    envelopeBudget.catBudgeted(category.id),
+  );
+  const spentValue = useEnvelopeSheetValue(
+    envelopeBudget.catSumAmount(category.id),
+  );
+  const balanceValue = useEnvelopeSheetValue(
+    envelopeBudget.catBalance(category.id),
+  );
+  const state = useEnvelopeState(budgetedValue, spentValue, balanceValue);
+
   return (
     <View
       style={{
@@ -285,10 +415,18 @@ export const ExpenseCategoryMonth = memo(function ExpenseCategoryMonth({
         },
       }}
     >
+      {isInstrument && (
+        <>
+          <InstrumentHistoryField month={month} id={category.id} />
+          <InstrumentMeterField percent={state.pct} color={state.fill} />
+        </>
+      )}
       <View
         ref={budgetMenuTriggerRef}
         style={{
-          flex: 1,
+          ...(isInstrument
+            ? { width: INSTRUMENT_BUDGET_WIDTH, flexShrink: 0 }
+            : { flex: 1 }),
           flexDirection: 'row',
         }}
         onContextMenu={e => {
@@ -398,7 +536,15 @@ export const ExpenseCategoryMonth = memo(function ExpenseCategoryMonth({
           focused={editing}
           width="flex"
           onExpose={() => onEdit(category.id, month)}
-          style={{ ...(editing && { zIndex: 100 }), ...styles.tnum }}
+          style={{
+            ...(editing && { zIndex: 100 }),
+            ...styles.tnum,
+            ...(isInstrument && {
+              fontSize: 15,
+              fontWeight: 600,
+              letterSpacing: '-0.014em',
+            }),
+          }}
           textAlign="right"
           valueStyle={{
             cursor: 'default',
@@ -433,7 +579,14 @@ export const ExpenseCategoryMonth = memo(function ExpenseCategoryMonth({
           }}
         />
       </View>
-      <Field name="spent" width="flex" style={{ textAlign: 'right' }}>
+      <Field
+        name="spent"
+        width={isInstrument ? INSTRUMENT_FIGURE_WIDTH : 'flex'}
+        style={{
+          textAlign: 'right',
+          ...(isInstrument && instrumentSpent),
+        }}
+      >
         <View
           data-testid="category-month-spent"
           onClick={() => onShowActivity(category.id, month)}
@@ -492,8 +645,12 @@ export const ExpenseCategoryMonth = memo(function ExpenseCategoryMonth({
       <Field
         ref={balanceMenuTriggerRef}
         name="balance"
-        width="flex"
-        style={{ paddingRight: styles.monthRightPadding, textAlign: 'right' }}
+        width={isInstrument ? INSTRUMENT_FIGURE_WIDTH : 'flex'}
+        style={{
+          paddingRight: isInstrument ? 0 : styles.monthRightPadding,
+          textAlign: 'right',
+          ...(isInstrument && instrumentBalance),
+        }}
       >
         <Button
           variant="bare"
@@ -547,9 +704,74 @@ export const ExpenseCategoryMonth = memo(function ExpenseCategoryMonth({
           />
         </Popover>
       </Field>
+      {isInstrument && (
+        <InstrumentStatusField tone={state.tone}>
+          {state.label}
+        </InstrumentStatusField>
+      )}
     </View>
   );
 });
+
+function InstrumentHistoryField({
+  month,
+  id,
+  isGroup = false,
+}: {
+  month: string;
+  id: string;
+  isGroup?: boolean;
+}) {
+  return (
+    <Field
+      name="history"
+      width={INSTRUMENT_HISTORY_WIDTH}
+      truncate={false}
+      contentStyle={{ alignItems: 'center' }}
+    >
+      <SpendHistory month={month} id={id} isGroup={isGroup} />
+    </Field>
+  );
+}
+
+function InstrumentMeterField({
+  percent,
+  color,
+}: {
+  percent: number;
+  color: string;
+}) {
+  return (
+    <Field
+      name="progress"
+      width="flex"
+      truncate={false}
+      contentStyle={{ padding: '0 14px' }}
+    >
+      <EnvelopeMeter percent={percent} color={color} />
+    </Field>
+  );
+}
+
+function InstrumentStatusField({
+  tone,
+  children,
+}: {
+  tone: ComponentProps<typeof EnvelopeChip>['tone'];
+  children: string;
+}) {
+  return (
+    <Field
+      name="status"
+      width={INSTRUMENT_STATUS_WIDTH}
+      truncate={false}
+      style={{ paddingRight: styles.monthRightPadding }}
+      contentStyle={{ alignItems: 'flex-end' }}
+    >
+      <EnvelopeChip tone={tone}>{children}</EnvelopeChip>
+    </Field>
+  );
+}
 
 type IncomeGroupMonthProps = {
   month: string;

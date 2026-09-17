@@ -10,24 +10,27 @@ import {
 } from '@actual-app/components/icons/v2';
 import { Menu } from '@actual-app/components/menu';
 import { Popover } from '@actual-app/components/popover';
-import { styles } from '@actual-app/components/styles';
 import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
 
 import { useGlobalPref } from '#hooks/useGlobalPref';
 
+import { useIsInstrumentMonth } from './MonthsContext';
 import { RenderMonths } from './RenderMonths';
-import { getScrollbarWidth } from './util';
+import { getCategoryColumnWidth, getScrollbarWidth } from './util';
 
 import { useBudgetComponents } from '.';
 
 type BudgetTotalsProps = {
+  /** Sit inside the rows' scroll and stick to its top. */
+  sticky?: boolean;
   toggleHiddenCategories: () => void;
   expandAllCategories: () => void;
   collapseAllCategories: () => void;
 };
 
 export const BudgetTotals = memo(function BudgetTotals({
+  sticky = false,
   toggleHiddenCategories,
   expandAllCategories,
   collapseAllCategories,
@@ -58,6 +61,7 @@ export const BudgetTotals = memo(function BudgetTotals({
   };
 
   const { BudgetTotalsComponent: MonthComponent } = useBudgetComponents();
+  const isInstrument = useIsInstrumentMonth();
 
   return (
     <View
@@ -66,10 +70,21 @@ export const BudgetTotals = memo(function BudgetTotals({
         backgroundColor: theme.budgetCurrentMonth, //use budget colors, not generic table colors
         flexDirection: 'row',
         flexShrink: 0,
-        boxShadow: styles.cardShadow,
-        marginLeft: 5,
-        marginRight: 5 + getScrollbarWidth(),
-        borderRadius: '4px 4px 0 0',
+        // one edge signal: the hairline below carries it, so no cast shadow on
+        // a surface that never leaves the screen
+        ...(sticky
+          ? {
+              // inside the scroll the rows already share its edges; the
+              // column labels ride along the top once the hero has gone
+              position: 'sticky',
+              top: 0,
+              zIndex: 150,
+            }
+          : {
+              marginLeft: 5,
+              marginRight: 5 + getScrollbarWidth(),
+              borderRadius: '4px 4px 0 0',
+            }),
         borderBottom: '1px solid ' + theme.tableBorder,
         '& .hover-visible': {
           opacity: 0,
@@ -82,10 +97,13 @@ export const BudgetTotals = memo(function BudgetTotals({
     >
       <View
         style={{
-          width: 200 + 100 * categoryExpandedState,
+          width: getCategoryColumnWidth(categoryExpandedState),
           color: theme.tableHeaderText,
           justifyContent: 'center',
-          paddingLeft: 5,
+          // the label starts on the same left edge as the category names below
+          // it and as the summary above; the column's two chrome controls sit
+          // together on the right rather than pushing the heading off it
+          paddingLeft: 18,
           paddingRight: 5,
           display: 'flex',
           flexDirection: 'row',
@@ -94,6 +112,19 @@ export const BudgetTotals = memo(function BudgetTotals({
           WebkitUserSelect: 'none',
         }}
       >
+        <View
+          style={{
+            flexGrow: '1',
+            ...(sticky && {
+              fontSize: 13,
+              fontWeight: 500,
+              letterSpacing: '-0.006em',
+              color: theme.pageTextSubdued,
+            }),
+          }}
+        >
+          {sticky ? <Trans>Envelope</Trans> : <Trans>Category</Trans>}
+        </View>
         <Button
           variant="bare"
           aria-label={getExpandStateLabel()}
@@ -102,7 +133,7 @@ export const BudgetTotals = memo(function BudgetTotals({
           style={{
             color: 'currentColor',
             padding: 3,
-            marginRight: 10,
+            marginRight: 8,
           }}
         >
           {categoryExpandedState === 0 ? (
@@ -128,9 +159,6 @@ export const BudgetTotals = memo(function BudgetTotals({
             />
           )}
         </Button>
-        <View style={{ flexGrow: '1' }}>
-          <Trans>Category</Trans>
-        </View>
         <Button
           ref={triggerRef}
           variant="bare"
@@ -179,7 +207,7 @@ export const BudgetTotals = memo(function BudgetTotals({
           />
         </Popover>
       </View>
-      <RenderMonths>
+      <RenderMonths style={isInstrument ? { borderLeft: 0 } : undefined}>
         <MonthComponent />
       </RenderMonths>
     </View>

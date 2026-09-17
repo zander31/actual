@@ -18,6 +18,7 @@ import type {
 import { Row } from '#components/table';
 import { useDragRef } from '#hooks/useDragRef';
 
+import { INSTRUMENT_ROW_HEIGHT, useIsInstrumentMonth } from './MonthsContext';
 import { RenderMonths } from './RenderMonths';
 import { SidebarCategory } from './SidebarCategory';
 
@@ -73,11 +74,13 @@ export function ExpenseCategory({
   });
 
   const { ExpenseCategoryComponent: MonthComponent } = useBudgetComponents();
+  const isInstrument = useIsInstrumentMonth();
 
   return (
     <Row
       innerRef={dropRef}
       collapsed
+      height={isInstrument ? INSTRUMENT_ROW_HEIGHT : undefined}
       style={{
         backgroundColor: theme.budgetCurrentMonth,
         opacity: cat.hidden || categoryGroup?.hidden ? 0.5 : undefined,
@@ -102,7 +105,7 @@ export function ExpenseCategory({
           onDelete={onDelete}
         />
 
-        <RenderMonths>
+        <RenderMonths style={isInstrument ? { borderLeft: 0 } : undefined}>
           {({ month }) => (
             <MonthComponent
               month={month}

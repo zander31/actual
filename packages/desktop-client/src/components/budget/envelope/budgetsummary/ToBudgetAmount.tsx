@@ -55,8 +55,17 @@ export function ToBudgetAmount({
   const isPositive = num > 0;
 
   return (
-    <View style={{ alignItems: 'center', ...style }}>
-      <Block>{isNegative ? t('Overbudgeted:') : t('To Budget:')}</Block>
+    <View style={{ alignItems: 'flex-start', gap: 2, ...style }}>
+      <Block
+        style={{
+          fontSize: 13,
+          fontWeight: 500,
+          letterSpacing: '-0.008em',
+          color: theme.pageTextSubdued,
+        }}
+      >
+        {isNegative ? t('Overbudgeted') : t('Left to assign')}
+      </Block>
       <View>
         <Tooltip
           content={
@@ -71,19 +80,14 @@ export function ToBudgetAmount({
           offset={3}
           triggerProps={{ isDisabled: isTotalsListTooltipDisabled }}
         >
-          <PrivacyFilter
-            style={{
-              textAlign: 'center',
-            }}
-          >
+          <PrivacyFilter>
             <Block
               onClick={onClick}
               onContextMenu={onContextMenu}
               data-cellname={sheetName}
               className={css([
-                styles.veryLargeText,
+                styles.heroNumber,
                 {
-                  fontWeight: 400,
                   userSelect: 'none',
                   cursor: 'pointer',
                   color: isPositive
@@ -91,14 +95,10 @@ export function ToBudgetAmount({
                     : isNegative
                       ? theme.toBudgetNegative
                       : theme.toBudgetZero,
-                  marginBottom: -1,
-                  borderBottom: '1px solid transparent',
-                  ':hover': {
-                    borderColor: isPositive
-                      ? theme.toBudgetPositive
-                      : isNegative
-                        ? theme.toBudgetNegative
-                        : theme.toBudgetZero,
+                  transition: 'opacity .14s ease',
+                  ':hover': { opacity: 0.68 },
+                  '@media (prefers-reduced-motion: reduce)': {
+                    transition: 'none',
                   },
                 },
                 amountStyle,

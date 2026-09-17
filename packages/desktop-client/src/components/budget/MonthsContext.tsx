@@ -1,5 +1,5 @@
 // @ts-strict-ignore
-import React, { createContext } from 'react';
+import React, { createContext, useContext } from 'react';
 import type { ReactNode } from 'react';
 
 import * as monthUtils from '@actual-app/core/shared/months';
@@ -52,3 +52,16 @@ export function MonthsProvider({
     </MonthsContext.Provider>
   );
 }
+
+/**
+ * A single envelope month is drawn as the fork's instrument: taller rows that
+ * carry each envelope's history, a spent bar and a status. Over several months
+ * (and on the tracking budget) the grid keeps upstream's density.
+ */
+export function useIsInstrumentMonth() {
+  const context = useContext(MonthsContext);
+  return context?.type === 'envelope' && context.months.length === 1;
+}
+
+export const INSTRUMENT_ROW_HEIGHT = 50;
+export const INSTRUMENT_GROUP_ROW_HEIGHT = 54;

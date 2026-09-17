@@ -9,6 +9,7 @@ import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
 import type { DashboardPageEntity } from '@actual-app/core/types/models';
 
+import { sectionLabel } from '#components/custom/primitives';
 import { useRenameDashboardPageMutation } from '#reports/mutations';
 
 type DashboardHeaderProps = {
@@ -44,8 +45,7 @@ export function DashboardHeader({ dashboard }: DashboardHeaderProps) {
         flexDirection: 'row',
         alignItems: 'center',
         whiteSpace: 'nowrap',
-        marginLeft: 20,
-        gap: 3,
+        gap: 5,
         '& .hover-visible': {
           opacity: 0,
           transition: 'opacity .25s',
@@ -53,7 +53,7 @@ export function DashboardHeader({ dashboard }: DashboardHeaderProps) {
         '&:hover .hover-visible': {
           opacity: 1,
         },
-        flexGrow: 1,
+        flexGrow: 0,
         flexShrink: 1,
         flexBasis: 'auto',
         minWidth: 0,
@@ -63,14 +63,13 @@ export function DashboardHeader({ dashboard }: DashboardHeaderProps) {
     >
       <View
         style={{
-          fontSize: 25,
-          fontWeight: 500,
+          ...sectionLabel,
           flexGrow: 0,
           flexShrink: 0,
           flexBasis: 'auto',
         }}
       >
-        <Trans>Reports</Trans>:
+        <Trans>Your widgets</Trans> ·
       </View>
       {editingName ? (
         <InitialFocus>
@@ -80,8 +79,8 @@ export function DashboardHeader({ dashboard }: DashboardHeaderProps) {
             onUpdate={handleSaveName}
             onEscape={() => setEditingName(false)}
             style={{
-              fontSize: 25,
-              fontWeight: 500,
+              ...sectionLabel,
+              color: theme.pageText,
               marginTop: -3,
               marginBottom: -4,
               paddingTop: 2,
@@ -93,8 +92,8 @@ export function DashboardHeader({ dashboard }: DashboardHeaderProps) {
         <>
           <View
             style={{
-              fontSize: 25,
-              fontWeight: 500,
+              ...sectionLabel,
+              color: theme.pageText,
               marginRight: 5,
               flexGrow: 0,
               flexShrink: 1,

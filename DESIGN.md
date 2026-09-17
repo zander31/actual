@@ -1,212 +1,422 @@
 ---
-name: Actual Budget
+name: Actual Budget (fork)
 description: Local-first personal finance, built around envelope budgeting
-# All color values are the light-theme palette mapping; dark and midnight
+# All colour values are the light-theme palette mapping; dark and midnight
 # remap the same semantic roles via `theme.*` tokens (see The Semantic Token Rule).
 colors:
-  actual-purple: '#8719e0'
-  actual-purple-hover: '#a368fc'
-  navy-ink: '#102a43'
-  navy-slate: '#627d98'
-  navy-mist: '#e8ecf0'
-  navy-frost: '#f7fafc'
-  page-text: '#272630'
+  brand-green: '#41C74F'
+  brand-green-press: '#5ACF68'
+  green-text: '#187A27'
+  brand-red: '#E8562A'
+  red-text: '#BF4118'
+  amber-fill: '#F5A100'
+  amber-text: '#7c5b11'
+  ink: '#1c1e21'
+  ink-secondary: '#585e66'
+  ink-subdued: '#697079'
+  canvas: '#f7f9fb'
   surface-white: '#ffffff'
-  positive-green: '#147d64'
-  negative-red: '#e12d39'
-  link-blue: '#1980d4'
-  warning-gold: '#b88115'
+  surface-sunken: '#f1f4f8'
+  rule: '#e3e7ec'
+  rule-strong: '#c6cace'
+  # the primary action is high-contrast neutral, never the accent
+  action-ink: '#000000'
+  # the highlight chip — offers, streaks, anything celebratory
+  lime: '#ccff00'
+  # tonal step used as the text-selection wash and its pre-hydration fallback
+  green-wash: '#bdf4c3'
 typography:
+  # the app's root size; every rem-relative measure descends from it
+  root:
+    fontFamily: 'Instrument Sans Variable, -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif'
+    fontSize: '13px'
+    fontWeight: 400
+  hero:
+    fontFamily: 'Instrument Sans Variable, -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif'
+    fontSize: '52px'
+    fontWeight: 550
+    letterSpacing: '-0.042em'
+  balance:
+    fontFamily: 'Instrument Sans Variable, -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif'
+    fontSize: '34px'
+    fontWeight: 560
+    letterSpacing: '-0.035em'
   display:
-    fontFamily: 'Inter Variable, -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif'
+    fontFamily: 'Instrument Sans Variable, -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif'
     fontSize: '30px'
-    fontWeight: 600
+    fontWeight: 560
+    letterSpacing: '-0.032em'
   headline:
-    fontFamily: 'Inter Variable, -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif'
-    fontSize: '20px'
-    fontWeight: 700
-    letterSpacing: '0.5px'
+    fontFamily: 'Instrument Sans Variable, -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif'
+    fontSize: '21px'
+    fontWeight: 600
+    letterSpacing: '-0.025em'
   title:
-    fontFamily: 'Inter Variable, -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif'
+    fontFamily: 'Instrument Sans Variable, -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif'
     fontSize: '15px'
     fontWeight: 500
   body:
-    fontFamily: 'Inter Variable, -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif'
+    fontFamily: 'Instrument Sans Variable, -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif'
     fontSize: '16px'
     fontWeight: 400
     fontFeature: 'tnum, ss01, ss04'
   label:
-    fontFamily: 'Inter Variable, -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif'
-    fontSize: '13px'
-    fontWeight: 400
+    fontFamily: 'Instrument Sans Variable, -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif'
+    fontSize: '15px'
+    fontWeight: 600
+    letterSpacing: '-0.014em'
 rounded:
+  xs: '6px'
   sm: '4px'
-  md: '6px'
+  md: '10px'
+  lg: '16px'
+  pill: '999px'
 spacing:
   xs: '5px'
   sm: '10px'
   md: '16px'
   lg: '20px'
+  xl: '26px'
 components:
   button-primary:
-    backgroundColor: '{colors.actual-purple}'
+    backgroundColor: '{colors.action-ink}'
     textColor: '{colors.surface-white}'
-    rounded: '{rounded.sm}'
-    padding: '5px 10px'
+    rounded: '{rounded.pill}'
+    padding: '6px 14px'
   button-primary-hover:
-    backgroundColor: '{colors.actual-purple-hover}'
+    backgroundColor: '#35383d'
     textColor: '{colors.surface-white}'
   button-normal:
     backgroundColor: '{colors.surface-white}'
-    textColor: '{colors.navy-ink}'
-    rounded: '{rounded.sm}'
-    padding: '5px 10px'
+    textColor: '{colors.ink}'
+    rounded: '{rounded.pill}'
+    padding: '6px 14px'
   input:
     backgroundColor: '{colors.surface-white}'
-    textColor: '{colors.page-text}'
+    textColor: '{colors.ink}'
     rounded: '{rounded.sm}'
     padding: '5px'
 ---
 
-# Design System: Actual Budget
+# Design System: Actual Budget (fork)
 
 ## 1. Overview
 
-**Creative North Star: "The Home Office"**
+**Creative North Star: Robinhood's light theme.**
 
-Actual feels like a tidy personal desk: familiar, unpretentious, everything within reach. It is a tool people open weekly for years to reconcile accounts and move envelope money around, so the interface optimizes for routine, not first impressions. Density is moderate-to-high (this is a table-driven app), feedback is instant, and decoration is close to zero. The financial numbers are the interface; everything else exists to keep them legible and trustworthy.
+A white canvas, structure by hairline, and one saturated green doing every
+interactive job. The figures are scaled up until they are unmistakably the
+content, and everything else is small, quiet and grey. Nothing is decorated;
+on most screens the only colour is a number that went the wrong way.
 
-The system explicitly rejects fintech-startup gloss (gradient heroes, glassmorphism, crypto-dashboard neon) and corporate banking UI (navy-and-gold enterprise-portal density). It is calm, trustworthy, and practical, and it must render identically well in three themes: light, dark, and midnight.
+This is a deliberate, user-directed replacement of the fork's previous world
+(warm parchment, iron ink, verdigris, a display serif). That world is now an
+anti-reference: do not reintroduce warm neutrals, serif display type, or
+ruled-paper metaphors.
+
+Product truth underneath is unchanged. Density in Actual's tables stays
+moderate-to-high, the semantic token discipline is intact, and every rule
+about money, contrast and colour below is carried forward.
 
 **Key Characteristics:**
 
-- Table-first layouts with tabular numerals everywhere money appears
-- One accent (Actual Purple) used sparingly for primary actions and selection
-- Semantic color tokens only; components never hardcode hex values
-- Utilitarian, compact components built for daily repetition
-- Flat-first surfaces; shadows reserved for transient overlays
+- White canvas; a faint grey page behind white surfaces so they read without borders
+- The number first, at a size nothing else competes with; the explanation small underneath
+- One accent — brand green — for primary action, selection, active nav, focus, and gains
+- Capsule controls that press in, never lift on a shadow
+- One face throughout; hierarchy is size, weight and tracking
+- Semantic colour tokens only; components never hardcode hex values
 
-## 2. Colors
+## 2. Colours
 
-A calm navy-neutral base with one confident purple accent and strict semantic roles for money.
+The palette is generated: every ramp keeps upstream's OKLCH lightness ladder
+exactly and only hue and chroma are retargeted, so all contrast roles carry
+over. The brand steps are then pinned to exact values.
+Regenerate with `node tools/palette.mjs <upstream palette.css>`.
 
-All hex values in this file (frontmatter included) are the light-theme palette mapping. The dark and midnight themes remap the same semantic roles to different palette values, so never use these hexes directly in components — route every color through the `theme.*` semantic tokens (see The Semantic Token Rule below).
+### The split that governs everything
 
-### Primary
+**The saturated brand steps are FILLS. They never carry text.**
 
-- **Actual Purple** (#8719e0): The single brand accent. Primary buttons, selected rows and borders, active navigation, mobile header. Hover lightens to **Lifted Purple** (#a368fc).
+- **Brand Green** (#41C74F) — 2.2:1 on white. Bars, chart strokes, indicators,
+  selection, the active-nav mark.
+- **Brand Red** (#E8562A) — 3.6:1 on white. A red-orange, not a pure red. The
+  losing half of a curve, error fills, the crossing dot.
+
+**The deep steps are the only ones figures and labels may use.**
+
+- **Green Text** (#187A27) — 5.5:1. Gains, positive amounts, links, caret.
+- **Red Text** (#BF4118) — 5.3:1. Losses, negative amounts, errors.
+- **Amber Text** (#7c5b11) — 6.3:1. Warnings, pending, underfunded.
+
+Getting this backwards is the single most likely way to break the system, and
+it is the failure this fork inherited from upstream. `node tools/contrast.mjs`
+proves it and exits non-zero if a permitted text colour drops below 4.5:1.
 
 ### Neutral
 
-- **Navy Ink** (#102a43): Sidebar background, darkest text. The app's anchor dark.
-- **Page Ink** (#272630): Default body text on light surfaces.
-- **Navy Slate** (#627d98): Secondary and subdued text, table headers.
-- **Navy Mist** (#e8ecf0): Page background, table borders, dividers.
-- **Navy Frost** (#f7fafc): Hover rows, raised header rows.
+- **Ink** (#1c1e21): Body text, headings, the sidebar's budget name.
+- **Ink Secondary** (#585e66) / **Ink Subdued** (#697079): Secondary and
+  tertiary text. Both clear 4.5:1 on every surface in the system.
+- **Canvas** (#f7f9fb): The page. Exists only so white surfaces read against
+  it without needing a border.
 - **Surface White** (#ffffff): Tables, cards, menus, modals.
+- **Surface Sunken** (#f1f4f8): Chart tiles, bar tracks, explanatory panels,
+  round icon buttons. `theme.surfaceSunken`. A chart does not sit on white —
+  it sits in a recess, and that is most of why the reference reads as built.
+- **Rule** (#e3e7ec) / **Rule Strong** (#c6cace): Dividers and input borders.
 
-### Tertiary (semantic money and status colors)
+**Constants with no upstream counterpart** (`--palette-ink`, `--palette-lime`)
+are emitted by `tools/palette.mjs`, never hand-added to the generated file. A
+hand-added entry is silently lost the next time the palette is regenerated, and
+it takes every primary button in the app with it.
 
-- **Positive Green** (#147d64): Positive amounts and funded budgets.
-- **Negative Red** (#e12d39): Negative amounts, overspending, failures.
-- **Link Blue** (#1980d4): Links and informational highlights.
-- **Warning Gold** (#b88115): Underfunded templates, pending states.
+**The neutrals carry a slight blue cast.** They are not dead grey. It is a
+small thing that accounts for a surprising amount of why the chrome reads as a
+finance product rather than a generic admin panel.
 
 ### Named Rules
 
-**The Semantic Token Rule.** Components never use raw palette values or hex codes. Every color goes through the `theme.*` semantic layer (`--color-*` custom properties) so all three themes (light, dark, midnight) stay correct. A hardcoded hex in a component is a bug.
+**The Semantic Token Rule.** Components never use raw palette values or hex
+codes. Every colour goes through the `theme.*` semantic layer (`--color-*`
+custom properties) so all three themes stay correct. A hardcoded hex in a
+component is a bug. `color-mix(in oklab, …)` over two tokens is allowed; the
+inputs are always tokens.
 
-**The One Accent Rule.** Actual Purple appears on well under 10% of any screen: primary action, current selection, active nav. It never decorates.
+**The One Accent Rule.** Brand green appears on well under 10% of any screen:
+primary action, current selection, active nav, focus, and gains. It never
+decorates. It is also the gain colour — these are deliberately the same green.
 
-**The Never-Color-Alone Rule.** Positive/negative money state is conveyed by sign and context as well as color; green/red are reinforcement, never the only signal.
+**The Never-Colour-Alone Rule.** Positive/negative state is conveyed by sign,
+position and context as well as colour. The Calendar's day bars exist so the
+month's shape survives without colour at all.
+
+**The Contrast Floor.** Body and placeholder text clears 4.5:1 against the
+surface it sits on; large text clears 3:1. Measure against the real surface,
+not against white by assumption. Disabled text is exempt.
 
 ## 3. Typography
 
-**Body Font:** Inter Variable (with system-ui fallback stack)
-**Label/Mono behavior:** Same family; financial figures switch on tabular OpenType features
+**Face:** Instrument Sans Variable (self-hosted; SIL OFL), one face throughout.
 
-**Character:** One workhorse sans at compact sizes. No display serif, no font pairing games: hierarchy comes from weight and size, and the typographic star is the number column.
+**Character:** A tight modern grotesque standing in for Robinhood's Capsule
+Sans. There is no second face and no pairing: hierarchy is size, weight and
+tracking only.
+
+**Tracking tightens as size grows.** A 44px figure at default tracking reads
+loose and unconfident. The scale below encodes this; do not set a large figure
+without it.
 
 ### Hierarchy
 
-- **Display** (600, 30px): Page-level headings and large balances. Rare.
-- **Headline** (700, 20px, 0.5px letter-spacing): Section titles.
-- **Title** (500, 15px): Emphasized in-table and card text.
+- **Hero** (550, 52px, -0.042em): The one number a page exists to report.
+  `styles.heroNumber`. At most one per screen.
+- **Balance** (560, 34px, -0.035em): A secondary figure. `styles.balanceNumber`.
+- **Display** (560, 30px, -0.032em): Large balances. `styles.veryLargeText`.
+- **Headline** (600, 21px, -0.025em): Section titles. `styles.displayText`.
+- **Title** (500, 15px): Emphasised in-table and card text.
 - **Body** (400, 16px): Default text.
-- **Label** (400, 13px): Table meta, menus, dense secondary text; 12px and 10px steps exist for the tightest spots.
+- **Section label** (600, 15px, -0.014em): Sentence case. `sectionLabel`.
+- **Column label** (500, 13px): The smallest tier. `columnLabel`.
 
 ### Named Rules
 
-**The Tabular Number Rule.** Every standalone financial figure renders with `font-feature-settings: "tnum", "ss01", "ss04"` (via `FinancialText` or `styles.tnum`) so digits align in columns and disambiguate. A proportional-figure money column is a bug.
+**The Tabular Number Rule.** Every standalone financial figure renders with
+tabular figures (via `FinancialText`, `styles.tnum`, or the display styles
+which carry it) so digits align in columns. `body` carries
+`font-variant-numeric: tabular-nums` as a floor.
+
+**The Figure-First Rule.** A page that answers a numeric question opens with
+that figure at hero size and a single delta line beneath it. Nothing sits above
+the figure. Not a stat tile: no supporting-metric row, no eyebrow, no card
+around it.
+
+**The Sentence-Case Rule.** Labels are sentence case, semibold, subdued — a
+brokerage labels a number the way it would say it aloud. Spaced capitals are an
+editorial idiom and read as a different product; they are banned above the
+smallest column-head tier.
+
+**The Delta Rule.** A change is set as: drawn triangle, then amount and
+percentage carrying the colour, then the period in plain neutral text — all at
+one size. The colour and the mark do the work, never a size jump.
 
 ## 4. Elevation
 
-Flat-first with ambient shadows. Structure comes from 1px borders (Navy Mist) and background shifts (White on Mist, Frost on hover), not depth. Shadows exist only to lift **transient** surfaces above the page: menus, tooltips, popovers, modals. Persistent surfaces like tables and cards sit flat or carry the faint card shadow at most.
+Flat. Structure comes from hairlines and from white surfaces sitting on the
+faint grey canvas. A persistent surface that needs an edge takes
+`box-shadow: inset 0 0 0 1px {rule}` — a hairline that costs no layout — never
+a cast shadow. Shadows lift only **transient** surfaces: menus, tooltips,
+popovers, modals.
 
-### Shadow Vocabulary
-
-- **Card** (`box-shadow: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24)`): Resting cards and small raised widgets.
-- **Ambient** (`box-shadow: 0 2px 4px 0 rgba(0,0,0,0.1)`): Focused inputs, subtle lift.
-- **Large** (`box-shadow: 0 15px 30px 0 rgba(0,0,0,0.11), 0 5px 15px 0 rgba(0,0,0,0.08)`): Tooltips, popovers, floating panels.
+Buttons do not lift. A capsule that gains a shadow on hover looks pasted on;
+the press state is `transform: scale(0.97)` and the hover state is a colour
+change.
 
 ### Named Rules
 
-**The Transient-Only Rule.** If a surface stays on screen, it gets a border. If it appears on interaction and disappears, it may cast a shadow.
+**The Transient-Only Rule.** If a surface stays on screen, it gets a rule. If
+it appears on interaction and disappears, it may cast a shadow.
+
+**The Single Signal Rule.** Declare an edge once. A 1px rule under a soft
+shadow is the ghost card; pick one.
 
 ## 5. Components
 
-Utilitarian and quick: compact paddings, instant state feedback, built for daily repetition. All values below are the light theme; every color routes through the semantic token layer.
-
 ### Buttons
 
-- **Shape:** Gently rounded (4px radius), compact padding (5px 10px)
-- **Primary:** Actual Purple background, white text; hover lifts to Lifted Purple with a soft shadow transition (`box-shadow .25s`)
-- **Normal:** White background, Navy Ink text, 1px navy border
-- **Bare:** Transparent, 5px padding; background tint on hover/press. The workhorse for in-table actions
+- **Shape:** full capsule (999px), padding `6px 14px`, `5px 8px` for bare
+- **Round icon button:** 36px circle on the sunken surface (30px in dense
+  chrome), ink icon, darkening on hover and scaling to 0.94 on press.
+  `RoundButton`. This is the reference's back/step control and the right shape
+  for any icon-only action.
+- **Primary:** **near-black fill, white label.** The primary action is
+  high-contrast neutral, not the accent — spending green on every button
+  flattens it and it stops meaning "gain". Dark theme inverts to white-on-black.
+  Press scales to 0.97; hover shifts the fill.
+- **Normal:** white fill, ink text, 1px rule-strong border, same capsule
+- **Bare:** transparent; background tint on hover/press
 
 ### Inputs / Fields
 
-- **Style:** White background, 1px border, 4px radius, 5px padding
-- **Focus:** Border switches to the selected accent; big inputs drop the border and take the ambient shadow instead
-- **Big variant:** 10px padding for mobile and prominent forms (40px minimum touch height on mobile)
+- White background, 1px rule-strong border, 4px radius, 5px padding
+- **Focus:** border switches to brand green; the keyboard ring is
+  `2px solid {green-text}` at `outline-offset: 2px`, on `:focus-visible` only
+- **Big variant:** 12px padding, 48px minimum height on mobile
 
 ### Cards / Containers
 
-- **Corner Style:** 6px radius on table containers (top corners), 4px elsewhere
-- **Background:** Surface White on Navy Mist page background
-- **Shadow Strategy:** Card shadow at most; structure via 1px Navy Mist border
-- **Internal Padding:** 16-20px
+- **Radius:** 16px for page-level surfaces, 10px for small tiles, 6px for data marks (bar caps, swatches), 4px for controls
+- **Background:** white on the grey canvas
+- **Edge:** the canvas contrast does the work; add an inset hairline only where
+  two white surfaces meet
+- **Internal padding:** 16–20px
 
 ### Navigation
 
-- **Sidebar:** Navy Ink background, light navy text; hover darkens the row, selection marked with a purple accent and purple text. Status states (pending/positive/failed) tint the item background gold/green/red
-- **Mobile:** Purple header, white nav bar, purple selected item
+Navigation lives at the **top**, as large text tabs. Weight and colour carry the
+state: active is ink at 650, inactive is subdued — no pill, no underline, no
+icon. The rail scrolls horizontally and fades at its right edge so a clipped
+tab reads as scrollable rather than broken.
 
-### Pills / Chips
+`components/custom/TopNav.tsx` is the wide-layout shell: the budget name on a
+quiet first line, the section tabs beneath it, and the **all-accounts figure
+pinned right** so the net position is never more than a glance away. One
+hairline closes it. The sidebar is retired on wide layouts; narrow layouts keep
+their own header and nav untouched.
 
-- **Style:** Editor pills: tinted background, 4px radius, 3px 5px padding. Used for rule conditions and inline tokens
+**Balances moved with it.** A rail two words wide was the only reason those
+figures were set at 13px; on `/balances` they get the room to be read — the net
+position as the page's hero, then each account as a ruled row with its balance
+right-aligned. Group headers carry their own subtotal. This is the reference's
+list rhythm, and it is where any new balance belongs.
+
+Pages do not repeat the tab's name: `Page header` is passed `null` on wide
+layouts and the real title only on narrow, where there is no tab to carry it.
+
+### Glyphs
+
+Direction marks are **drawn SVG triangles**, not unicode arrows — a unicode
+glyph shifts its optical size and baseline between faces and sits wrong beside
+tabular figures. `Direction` and `Delta` in `components/custom/primitives.tsx`.
+
+### Signature Component: The Summary Tile Row
+
+The budget month opens with a row of tiles — one per figure, each a hairline
+rect with the label small and quiet above the figure in the money tier. They
+wrap two-up in a narrow card and four-across where there is room
+(`minmax(150px, 1fr)`; a smaller minimum strands one tile on its own row).
+
+Beneath them sits the single figure the surface exists to report — *Left to
+assign* — at hero scale, left-aligned on the same edge as the heading and the
+tiles. Everything in the card shares one left edge; a figure that sits 14px off
+the tiles above it reads as a mistake even when nobody can say why.
+
+### Signature Component: The Month Strip
+
+Actual's month range selector is the direct analogue of the reference's
+`1D 1W 1M 3M YTD` control. The selected run is one capsule — pill radii on its
+two ends, square between — filled with the primary ink and set in white.
+Unselected months are secondary ink at 14px; the current month is full ink
+without a fill. Stepping controls are 30px circles on the sunken surface.
+
+### Signature Component: The Month Grid
+
+The Calendar is a bar chart laid out on a calendar, not a table of numbers.
+Every day is a column: the date small at the top, the projected balance in the
+money tier beneath it, then a **gradient bar standing on the row's baseline**
+inside a visible track. The track matters — without it a short bar reads as
+floating between rows instead of sitting low in its own column.
+
+Bars scale across **the month's own range, not from zero**. The page answers
+"how low does it get", and a zero baseline flattens a month swinging between
+$400 and $1,100 into near-identical bars. The floor keeps the lowest day
+visible at 12% rather than collapsing it to nothing.
+
+Bars use the _fill_ steps (`balanceFill`), figures use the _ink_ steps
+(`balanceInk`). The three fills — green, amber, red — are weighted to read as
+one family; an amber that washes out beside them is a bug, not a softer state.
 
 ### Signature Component: The Money Table
 
-The core surface of the app. White rows on 1px Navy Mist borders, Frost hover, purple-bordered selection, sticky header with Slate 13px text, amounts right-aligned in tabular figures colored by the semantic money tokens. Alternate-row striping is theme-controlled, never hardcoded.
+Rows are **38px** (`ROW_HEIGHT`). 32px is a spreadsheet; the reference's lists
+breathe. White rows ruled in 1px, no alternate-row banding — the hairline carries the
+eye. Raised on hover, green-bordered selection, sticky header with
+ink-subdued 13px text, amounts right-aligned in tabular figures coloured by the
+semantic money tokens.
 
-## 6. Do's and Don'ts
+### Signature Component: The Hero Answer
+
+Both fork pages open the same way: a small uppercase label, the figure at hero
+size coloured by what it means, then one plain sentence and — where a second
+fact earns a glance — a single capsule chip. Nothing else competes.
+
+## 6. Charts
+
+The line is the subject. Axes are hairlines, gridlines horizontal only, ticks
+unboxed.
+
+**A curve that crosses zero changes colour at zero**, via an SVG gradient with
+two stops at the same offset — green above, brand red below. Do not shade a
+region instead; a filled block dominates the plot and buries the line. Recharts
+v3 drops raw `<defs>` children, so gradients are defined in a zero-size `<svg>`
+next to the chart and referenced by id.
+
+**Gridlines are dotted** (`strokeDasharray="1 5"`), horizontal only, at 35%
+opacity. **Every marked point carries a halo**: a second dot at `r={12}` and
+18% opacity behind the solid `r={5}` one. A bare dot looks unfinished, and the
+halo is what makes a crossing or an end-of-series point read as _the_ moment.
+
+**Legends are sentences, not keys**: swatch, then the figure in ink, then what
+it means in grey — `LegendRow` with `Swatch` or `DashSwatch`.
+
+Anything with an intrinsic height inside a `Page` needs `flexShrink: 0`, or the
+flex column crushes it and the SVG spills its axes onto the next section.
+
+## 7. Browser Surfaces
+
+Set once in `packages/desktop-client/index.html`: text selection (green wash),
+caret, custom scrollbars (rule-coloured thumb on a transparent track), the
+`:focus-visible` ring, and link underline offset.
+
+## 8. Do's and Don'ts
 
 ### Do:
 
-- **Do** route every color through `theme.*` semantic tokens so light, dark, and midnight themes all work. Test all three.
+- **Do** route every colour through `theme.*` semantic tokens; test light, dark, and midnight.
+- **Do** run `node tools/contrast.mjs` before shipping a new text colour.
 - **Do** wrap standalone financial numbers in `FinancialText` or apply `styles.tnum`.
-- **Do** keep components compact and quick: 4px radii, 5-10px paddings, instant hover/press states.
+- **Do** lead a numeric page with its figure at hero size.
 - **Do** reuse the existing component library (`@actual-app/components`) before writing new UI.
-- **Do** keep Actual Purple scarce: primary action and selection only.
-- **Do** respect the breakpoints: 512px (small), 730px (medium), 1100px (wide); mobile touch targets are at least 40px tall.
+- **Do** respect the breakpoints: 512px (small), 730px (medium), 1100px (wide); mobile touch targets are at least 44px tall.
 
 ### Don't:
 
-- **Don't** use fintech-startup gloss: gradient heroes, glassmorphism, neon accents, crypto-dashboard styling (PRODUCT.md anti-reference).
-- **Don't** use corporate banking UI patterns: navy-and-gold, enterprise-portal density, legalese energy (PRODUCT.md anti-reference).
-- **Don't** hardcode hex values or raw `--palette-*` colors in components; the semantic layer is the only entry point.
-- **Don't** rely on color alone for positive/negative amounts.
-- **Don't** put shadows on persistent surfaces; shadows are for transient overlays only.
-- **Don't** use `border-left`/`border-right` thicker than 1px as a colored accent stripe.
-- **Don't** animate layout properties; transitions are for color, opacity, and shadow (like the button's `box-shadow .25s`).
+- **Don't** use the brand green or brand red as a text colour. They are fills.
+- **Don't** reintroduce the previous world: warm neutrals, serif display type, parchment, ruled-paper metaphor.
+- **Don't** hardcode hex values or raw `--palette-*` colours in components.
+- **Don't** rely on colour alone for positive/negative amounts.
+- **Don't** put shadows on persistent surfaces, or on buttons at all.
+- **Don't** use `border-left`/`border-right` thicker than 1px as a coloured accent stripe.
+- **Don't** animate layout properties. Transitions are for colour, opacity, shadow and transform — a bar that grows uses `scaleX`, never `width` — and every transition is dropped under `prefers-reduced-motion`.
+- **Don't** use emoji or unicode glyphs as icons. Icons are drawn SVG at a consistent stroke weight.
+- **Don't** add a second typeface.

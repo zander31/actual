@@ -17,7 +17,9 @@ import { InputCell } from '#components/table';
 import { useContextMenu } from '#hooks/useContextMenu';
 import { useGlobalPref } from '#hooks/useGlobalPref';
 
+import { useIsInstrumentMonth } from './MonthsContext';
 import { SidebarCategoryButtons } from './SidebarCategoryButtons';
+import { getCategoryColumnWidth } from './util';
 
 type SidebarCategoryProps = {
   innerRef: Ref<HTMLDivElement>;
@@ -61,6 +63,7 @@ export function SidebarCategory({
   const { t } = useTranslation();
   const [categoryExpandedStatePref] = useGlobalPref('categoryExpandedState');
   const categoryExpandedState = categoryExpandedStatePref ?? 0;
+  const isInstrument = useIsInstrumentMonth();
 
   const temporary = category.id === 'new';
   const triggerRef = useRef(null);
@@ -125,7 +128,7 @@ export function SidebarCategory({
     <View
       innerRef={innerRef}
       style={{
-        width: 200 + 100 * categoryExpandedState,
+        width: getCategoryColumnWidth(categoryExpandedState),
         overflow: 'hidden',
         '& .hover-visible': {
           display: 'none',
@@ -173,7 +176,15 @@ export function SidebarCategory({
           }
         }}
         onBlur={() => onEditName(null)}
-        style={{ paddingLeft: 13, ...(isLast && { borderBottomWidth: 0 }) }}
+        style={{
+          paddingLeft: 13,
+          ...(isInstrument && {
+            fontSize: 15,
+            fontWeight: 500,
+            letterSpacing: '-0.014em',
+          }),
+          ...(isLast && { borderBottomWidth: 0 }),
+        }}
         inputProps={{
           placeholder: temporary ? t('New category name') : '',
         }}
