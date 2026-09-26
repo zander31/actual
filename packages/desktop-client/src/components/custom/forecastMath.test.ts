@@ -1,5 +1,6 @@
 import {
   applyWhatIf,
+  buildCalendarDays,
   combineByDate,
   dayColor,
   forecastWindow,
@@ -161,5 +162,111 @@ describe('forecastMath', () => {
     expect(monthEnds(projectBands(pts2, null)).map(e => e.date)).toEqual([
       '2026-09-30',
     ]);
+  });
+
+  describe('buildCalendarDays', () => {
+    const sched = (date: string, amount: number, scheduleId: string) => ({
+      ...pt(date, 0),
+      transactions: [
+        { amount, payee: scheduleId, scheduleId, scheduleName: scheduleId },
+      ],
+    });
+    const posted = (
+      date: string,
+      amount: number,
+      schedule: string | null = null,
+    ) => ({
+      date,
+      amount,
+      payee: schedule ?? 'shop',
+      schedule,
+    });
+    const base = {
+      opening: 1_000_00,
+      start: '2026-09-24',
+      first: '2026-09-24',
+      last: '2026-09-30',
+      today: '2026-09-25',
+    };
+
+    test('days up to today are the real balance, with what actually posted', () => {
+      const days = buildCalendarDays({
+        ...base,
+        posted: [
+          posted('2026-09-24', -50_00),
+          posted('2026-09-25', 2_900_30, 'va'),
+        ],
+        scheduled: [],
+      });
+      expect(days.find(d => d.date === '2026-09-24')?.balance).toBe(950_00);
+      const today = days.find(d => d.date === '2026-09-25')!;
+      expect(today.balance).toBe(3_850_30);
+      expect(today.posted.map(p => p.amount)).toEqual([2_900_30]);
+    });
+
+    test('a paycheck that posted early is not projected again on its due date', () => {
+      const days = buildCalendarDays({
+        ...base,
+        posted: [posted('2026-09-25', 2_900_30, 'va')],
+        scheduled: [sched('2026-09-30', 2_900_30, 'va')],
+      });
+      expect(days.at(-1)?.balance).toBe(3_900_30);
+      expect(days.at(-1)?.transactions).toEqual([]);
+    });
+
+    test('a bill due today that has not posted is listed today but lands tomorrow', () => {
+      const days = buildCalendarDays({
+        ...base,
+        posted: [],
+        scheduled: [
+          sched('2026-09-25', -375_00, 'camper'),
+          sched('2026-09-28', -100_00, 'ins'),
+        ],
+      });
+      const byDate = new Map(days.map(d => [d.date, d]));
+      expect(byDate.get('2026-09-25')?.balance).toBe(1_000_00);
+      expect(byDate.get('2026-09-25')?.transactions).toHaveLength(1);
+      expect(byDate.get('2026-09-26')?.balance).toBe(625_00);
+      expect(byDate.get('2026-09-28')?.balance).toBe(525_00);
+    });
+
+    test('future-dated posted transactions count on their day', () => {
+      const days = buildCalendarDays({
+        ...base,
+        posted: [posted('2026-09-26', -592_65, 'heloc')],
+        scheduled: [],
+      });
+      expect(days.find(d => d.date === '2026-09-26')?.balance).toBe(407_35);
+    });
+
+    test('a future month opens on everything that lands between today and its 1st', () => {
+      const days = buildCalendarDays({
+        ...base,
+        start: '2026-09-25',
+        first: '2026-10-01',
+        last: '2026-10-03',
+        posted: [posted('2026-09-28', -490_72, 'avant')],
+        scheduled: [
+          sched('2026-09-28', -100_00, 'ins'),
+          // paid early on the 28th: not projected again
+          sched('2026-10-02', -490_72, 'avant'),
+        ],
+      });
+      expect(days.map(d => d.date)).toEqual([
+        '2026-10-01',
+        '2026-10-02',
+        '2026-10-03',
+      ]);
+      expect(days.map(d => d.balance)).toEqual([409_28, 409_28, 409_28]);
+    });
+
+    test('lookback transactions before the start only suppress, never re-add', () => {
+      const days = buildCalendarDays({
+        ...base,
+        posted: [posted('2026-09-20', -2_900_30, 'va')],
+        scheduled: [sched('2026-09-26', 2_900_30, 'va')],
+      });
+      expect(days.at(-1)?.balance).toBe(1_000_00);
+    });
   });
 });

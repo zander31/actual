@@ -29,6 +29,7 @@ import { useNavigate } from '#hooks/useNavigate';
 import { aqlQuery } from '#queries/aqlQuery';
 
 import {
+  buildCalendarDays,
   combineByDate,
   hasScheduledIncome,
   MIN_SAMPLE_MONTHS,
@@ -52,6 +53,7 @@ import {
   Swatch,
   wash,
 } from './primitives';
+import { usePostedTransactions } from './usePostedTransactions';
 
 const HISTORY_MONTHS = 3;
 
@@ -101,14 +103,17 @@ export function ForecastPage() {
     [accountId, onBudget],
   );
 
+  const today = monthUtils.currentDay();
+  const endDate = monthUtils.addDays(today, days);
+  const ledger = usePostedTransactions(accountIds, today, endDate);
+
   useEffect(() => {
     if (!accountIds.length) return;
-    const today = monthUtils.currentDay();
     let cancelled = false;
     void send('forecast/generate', {
       accountIds,
       startDate: today,
-      endDate: monthUtils.addDays(today, days),
+      endDate,
     }).then(res => {
       if (!cancelled) {
         setScrub(null);
@@ -118,7 +123,8 @@ export function ForecastPage() {
     return () => {
       cancelled = true;
     };
-  }, [accountIds, days]);
+    // ledger: linking a transaction to a schedule moves its next date
+  }, [accountIds, today, endDate, ledger]);
 
   useEffect(() => {
     if (!accountIds.length) return;
@@ -166,7 +172,27 @@ export function ForecastPage() {
     [history],
   );
   const combined = useMemo(() => combineByDate(points), [points]);
-  const bands = useMemo(() => projectBands(combined, rates), [combined, rates]);
+  // Balances rebuilt from the real ledger rather than taken from
+  // forecast/generate, which projects a paycheck that posted early a second
+  // time on its due date — see buildCalendarDays.
+  const projected = useMemo(
+    () =>
+      ledger
+        ? buildCalendarDays({
+            ...ledger,
+            scheduled: points,
+            start: today,
+            first: today,
+            last: endDate,
+            today,
+          })
+        : [],
+    [ledger, points, today, endDate],
+  );
+  const bands = useMemo(
+    () => projectBands(projected, rates),
+    [projected, rates],
+  );
   const noIncomeSchedule = useMemo(
     () => points.length > 0 && !hasScheduledIncome(combined),
     [points.length, combined],
