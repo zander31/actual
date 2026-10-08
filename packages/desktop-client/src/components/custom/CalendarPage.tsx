@@ -1,6 +1,6 @@
-// Fork addition: month calendar of projected end-of-day balances (current balance + schedules),
-// bills due per day, and what-if spends that re-project live — a slider for
-// today, and click-a-day for any other date.
+// Fork addition: month calendar of end-of-day balances — the real balance and
+// what posted through today, projected from schedules after that — and what-if
+// spends that re-project live: a slider for today, click-a-day for any other.
 //
 // The balance is a continuous quantity, so each day carries a bar scaled to the
 // month's own range — the shape of the month is readable at a glance, and the
@@ -32,13 +32,14 @@ import { useNavigate } from '#hooks/useNavigate';
 
 import {
   applyWhatIf,
+  buildCalendarDays,
   combineByDate,
   forecastWindow,
   hasScheduledIncome,
   RED_BELOW,
   YELLOW_BELOW,
 } from './forecastMath';
-import type { DayPoint } from './forecastMath';
+import type { CalendarDay, DayPoint } from './forecastMath';
 import {
   balanceFill,
   balanceInk,
@@ -52,6 +53,7 @@ import {
   sectionLabel,
   wash,
 } from './primitives';
+import { usePostedTransactions } from './usePostedTransactions';
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
 
@@ -99,10 +101,19 @@ export function CalendarPage() {
   // or the projection opens that month at today's balance and loses every
   // schedule in between — see forecastWindow.
   const window = useMemo(() => forecastWindow(month, today), [month, today]);
+  const ids = useMemo(
+    () => (accountId === 'all' ? onBudget.map(a => a.id) : [accountId]),
+    [accountId, onBudget],
+  );
+
+  const ledger = usePostedTransactions(
+    accountId ? ids : [],
+    window.startDate,
+    window.endDate,
+  );
 
   useEffect(() => {
     if (!accountId) return;
-    const ids = accountId === 'all' ? onBudget.map(a => a.id) : [accountId];
     let cancelled = false;
     void send('forecast/generate', {
       accountIds: ids,
@@ -114,7 +125,8 @@ export function CalendarPage() {
     return () => {
       cancelled = true;
     };
-  }, [accountId, window, onBudget]);
+    // ledger: linking a transaction to a schedule moves its next date
+  }, [accountId, window, ids, ledger]);
 
   const first = monthUtils.firstDayOfMonth(month);
   const last = monthUtils.lastDayOfMonth(month);
@@ -131,13 +143,22 @@ export function CalendarPage() {
   }, [whatIf, first]);
 
   const combined = useMemo(() => combineByDate(points), [points]);
-  const days: DayPoint[] = useMemo(
+  const days: CalendarDay[] = useMemo(
     () =>
-      applyWhatIf(
-        combined.filter(d => d.date >= first),
-        monthWhatIf,
-      ),
-    [combined, first, monthWhatIf],
+      ledger
+        ? applyWhatIf(
+            buildCalendarDays({
+              ...ledger,
+              scheduled: points,
+              start: window.startDate,
+              first,
+              last,
+              today,
+            }),
+            monthWhatIf,
+          )
+        : [],
+    [ledger, points, window.startDate, first, last, today, monthWhatIf],
   );
   // Nothing ahead is knowable without income schedules: the whole projection
   // is only the bills, so it can only ever fall.
@@ -556,9 +577,13 @@ export function CalendarPage() {
             const ink = d ? balanceInk(d.balance) : theme.pageTextSubdued;
             const bar = d ? balanceFill(d.balance) : theme.tableBorder;
             const bills = d?.transactions ?? [];
-            const due = bills
-              .filter(b => b.amount < 0)
-              .reduce((sum, b) => sum + b.amount, 0);
+            // what happened, through today; what's scheduled, after
+            const flows = (d?.posted ?? []).map(p => p.amount);
+            if (date > today) flows.push(...bills.map(b => b.amount));
+            const moneyIn = flows.filter(a => a > 0).reduce((s, a) => s + a, 0);
+            const moneyOut = flows
+              .filter(a => a < 0)
+              .reduce((s, a) => s + a, 0);
             const isSelected = selectedDay === date;
             const isHovered = hoverDay === date;
             const isToday = date === today;
@@ -571,7 +596,7 @@ export function CalendarPage() {
                 role="button"
                 tabIndex={0}
                 aria-pressed={isSelected}
-                aria-label={t('{{date}} — projected balance {{amount}}', {
+                aria-label={t('{{date}} — balance {{amount}}', {
                   date: monthUtils.format(date, 'EEEE, d MMMM'),
                   amount: d ? format(d.balance, 'financial') : '—',
                 })}
@@ -645,9 +670,10 @@ export function CalendarPage() {
                       width: 6,
                       height: 6,
                       borderRadius: 999,
-                      backgroundColor: bills.length
-                        ? theme.tableBorderHover
-                        : 'transparent',
+                      backgroundColor:
+                        bills.length || d?.posted.length
+                          ? theme.tableBorderHover
+                          : 'transparent',
                     }}
                   />
                 </View>
@@ -676,7 +702,20 @@ export function CalendarPage() {
                     minHeight: 15,
                   }}
                 >
-                  {due !== 0 && (
+                  {moneyIn !== 0 && (
+                    <Text
+                      style={{
+                        ...styles.tnum,
+                        fontSize: 11,
+                        fontWeight: 600,
+                        color: theme.noticeText,
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      +{format(moneyIn, 'financial-no-decimals')}
+                    </Text>
+                  )}
+                  {moneyOut !== 0 && (
                     <Text
                       style={{
                         ...styles.tnum,
@@ -686,7 +725,7 @@ export function CalendarPage() {
                         whiteSpace: 'nowrap',
                       }}
                     >
-                      {format(due, 'financial-no-decimals')}
+                      {format(moneyOut, 'financial-no-decimals')}
                     </Text>
                   )}
                   {whatIf[date] ? (
@@ -749,6 +788,7 @@ export function CalendarPage() {
                   <DayTooltip
                     day={d}
                     column={i % 7}
+                    today={today}
                     spend={whatIf[date]}
                     format={format}
                   />
@@ -801,33 +841,26 @@ export function CalendarPage() {
                 <Trans>Close</Trans>
               </Button>
             </View>
-            {(byDate.get(selectedDay)?.transactions.length ?? 0) > 0 && (
-              <>
-                <Rule />
-                <Text style={{ ...sectionLabel }}>
-                  <Trans>Due this day</Trans>
-                </Text>
-                <View style={{ gap: 3 }}>
-                  {byDate.get(selectedDay)?.transactions.map((b, j) => (
-                    <View
-                      key={j}
-                      style={{
-                        flexDirection: 'row',
-                        justifyContent: 'space-between',
-                        gap: 10,
-                      }}
-                    >
-                      <Text style={{ color: theme.pageTextLight }}>
-                        {b.scheduleName || b.payee}
-                      </Text>
-                      <Text style={{ color: theme.pageText, ...styles.tnum }}>
-                        {format(b.amount, 'financial')}
-                      </Text>
-                    </View>
-                  ))}
-                </View>
-              </>
-            )}
+            <DetailList
+              title={t('Posted')}
+              lines={(byDate.get(selectedDay)?.posted ?? []).map(p => ({
+                name: p.payee,
+                amount: p.amount,
+              }))}
+              format={format}
+            />
+            <DetailList
+              title={
+                selectedDay > today
+                  ? t('Scheduled')
+                  : t('Scheduled, not posted')
+              }
+              lines={(byDate.get(selectedDay)?.transactions ?? []).map(b => ({
+                name: b.scheduleName || b.payee || '',
+                amount: b.amount,
+              }))}
+              format={format}
+            />
           </View>
         )}
       </View>
@@ -880,14 +913,19 @@ function LegendKey({ color, label }: { color: string; label: string }) {
 }
 
 /** The hover card above a day: its date, balance, and what is due. */
+/** How many posted lines the hover card shows before summarising the rest. */
+const TOOLTIP_POSTED_MAX = 5;
+
 function DayTooltip({
   day,
   column,
+  today,
   spend,
   format,
 }: {
-  day: DayPoint;
+  day: CalendarDay;
   column: number;
+  today: string;
   spend: number | undefined;
   format: Format;
 }) {
@@ -938,17 +976,43 @@ function DayTooltip({
         {format(day.balance, 'financial')}
       </Text>
       <Rule style={{ margin: '10px 0' }} />
-      {day.transactions.length === 0 && !spend ? (
-        <TooltipLine name={t('Nothing scheduled')} amount="—" />
-      ) : (
-        day.transactions.map((b, j) => (
-          <TooltipLine
-            key={j}
-            name={b.scheduleName || b.payee}
-            amount={format(b.amount, 'financial')}
-          />
-        ))
+      {day.posted.length === 0 && day.transactions.length === 0 && !spend && (
+        <TooltipLine
+          name={day.date > today ? t('Nothing scheduled') : t('Nothing posted')}
+          amount="—"
+        />
       )}
+      {day.posted.slice(0, TOOLTIP_POSTED_MAX).map((p, j) => (
+        <TooltipLine
+          key={`p${j}`}
+          name={p.payee}
+          amount={format(p.amount, 'financial')}
+        />
+      ))}
+      {day.posted.length > TOOLTIP_POSTED_MAX && (
+        <TooltipLine
+          name={t('{{count}} more', {
+            count: day.posted.length - TOOLTIP_POSTED_MAX,
+          })}
+          amount={format(
+            day.posted
+              .slice(TOOLTIP_POSTED_MAX)
+              .reduce((s, p) => s + p.amount, 0),
+            'financial',
+          )}
+        />
+      )}
+      {day.transactions.map((b, j) => (
+        <TooltipLine
+          key={`s${j}`}
+          name={
+            day.date > today
+              ? b.scheduleName || b.payee || ''
+              : t('{{name}} (not posted)', { name: b.scheduleName || b.payee })
+          }
+          amount={format(b.amount, 'financial')}
+        />
+      ))}
       {spend ? (
         <TooltipLine
           name={t('What-if spend')}
@@ -963,9 +1027,50 @@ function DayTooltip({
           marginTop: 6,
         }}
       >
-        <Trans>Projected end of day, from your schedules.</Trans>
+        {day.date < today ? (
+          <Trans>Actual end-of-day balance.</Trans>
+        ) : day.date === today ? (
+          <Trans>Your balance right now.</Trans>
+        ) : (
+          <Trans>Projected end of day, from your schedules.</Trans>
+        )}
       </Text>
     </View>
+  );
+}
+
+function DetailList({
+  title,
+  lines,
+  format,
+}: {
+  title: string;
+  lines: Array<{ name: string; amount: number }>;
+  format: Format;
+}) {
+  if (!lines.length) return null;
+  return (
+    <>
+      <Rule />
+      <Text style={{ ...sectionLabel }}>{title}</Text>
+      <View style={{ gap: 3 }}>
+        {lines.map((l, j) => (
+          <View
+            key={j}
+            style={{
+              flexDirection: 'row',
+              justifyContent: 'space-between',
+              gap: 10,
+            }}
+          >
+            <Text style={{ color: theme.pageTextLight }}>{l.name}</Text>
+            <Text style={{ color: theme.pageText, ...styles.tnum }}>
+              {format(l.amount, 'financial')}
+            </Text>
+          </View>
+        ))}
+      </View>
+    </>
   );
 }
 

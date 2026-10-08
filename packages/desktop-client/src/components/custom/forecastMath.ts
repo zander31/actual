@@ -45,6 +45,104 @@ export function forecastWindow(month: string, today: string) {
   };
 }
 
+export type PostedTxn = {
+  date: string;
+  amount: number;
+  payee: string;
+  schedule: string | null;
+};
+
+export type CalendarDay = DayPoint & { posted: PostedTxn[] };
+
+/**
+ * How early a linked transaction may land and still settle the schedule's next
+ * occurrence. Upstream allows two days; VA pay posts up to five early, and was
+ * being projected a second time on its due date.
+ */
+export const EARLY_POST_DAYS = 7;
+
+/**
+ * The calendar's days: what really happened up to today, then the schedules.
+ *
+ * `opening` is every posted cent before `start`; `posted` runs from
+ * EARLY_POST_DAYS before `start` through `last` (the lead-in only settles
+ * schedules). `scheduled` is forecast/generate's answer, used for its schedule
+ * occurrences only — its balances assume a due-today bill has already left.
+ *
+ * Days through today carry the real balance. A schedule due today or earlier
+ * that has not posted is still listed on its day but lands tomorrow. Days are
+ * computed from `start` so a future month opens on everything in between, and
+ * returned from `first`.
+ */
+export function buildCalendarDays({
+  opening,
+  posted,
+  scheduled,
+  start,
+  first,
+  last,
+  today,
+}: {
+  opening: number;
+  posted: PostedTxn[];
+  scheduled: ForecastDataPoint[];
+  start: string;
+  first: string;
+  last: string;
+  today: string;
+}): CalendarDay[] {
+  const postedByDay = new Map<string, PostedTxn[]>();
+  for (const p of posted) {
+    if (p.date < start) continue;
+    postedByDay.set(p.date, [...(postedByDay.get(p.date) ?? []), p]);
+  }
+
+  const occurrences = scheduled
+    .flatMap(p => p.transactions.map(t => ({ ...t, date: p.date })))
+    .sort((a, b) => a.date.localeCompare(b.date));
+  const seen = new Set<string>();
+  const listedByDay = new Map<string, DayPoint['transactions']>();
+  const landsByDay = new Map<string, number>();
+  const tomorrow = monthUtils.addDays(today, 1);
+  for (const { date, ...occ } of occurrences) {
+    // ponytail: only a schedule's first projected occurrence can be settled
+    // early; a biweekly paid more than a week late would still double-count.
+    const isFirst = !seen.has(occ.scheduleId);
+    seen.add(occ.scheduleId);
+    const lookback = monthUtils.subDays(date, EARLY_POST_DAYS);
+    if (
+      isFirst &&
+      posted.some(
+        p =>
+          p.schedule === occ.scheduleId && p.date >= lookback && p.date <= date,
+      )
+    ) {
+      continue;
+    }
+    listedByDay.set(date, [...(listedByDay.get(date) ?? []), occ]);
+    const lands = date > today ? date : tomorrow;
+    landsByDay.set(lands, (landsByDay.get(lands) ?? 0) + occ.amount);
+  }
+
+  let running = opening;
+  const days: CalendarDay[] = [];
+  for (const date of monthUtils.dayRangeInclusive(start, last)) {
+    const dayPosted = postedByDay.get(date) ?? [];
+    running +=
+      dayPosted.reduce((sum, p) => sum + p.amount, 0) +
+      (landsByDay.get(date) ?? 0);
+    if (date >= first) {
+      days.push({
+        date,
+        balance: running,
+        transactions: listedByDay.get(date) ?? [],
+        posted: dayPosted,
+      });
+    }
+  }
+  return days;
+}
+
 export const RED_BELOW = 50_000; // $500
 export const YELLOW_BELOW = 100_000; // $1,000
 
@@ -55,10 +153,10 @@ export function dayColor(balance: number): 'red' | 'yellow' | 'green' {
 }
 
 /** Hypothetical spends keyed by date; each reduces that day and every later day. */
-export function applyWhatIf(
-  points: DayPoint[],
+export function applyWhatIf<T extends DayPoint>(
+  points: T[],
   whatIf: Record<string, number>,
-): DayPoint[] {
+): T[] {
   let running = 0;
   return points.map(p => {
     running += whatIf[p.date] ?? 0;
